@@ -493,7 +493,6 @@ def create_table(engine):
         OWNER to {user};
     """
     engine.execute(ddl)
-    engine.commit()
 
 
 def upload(df, engine):
