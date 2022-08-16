@@ -397,34 +397,33 @@ Fonte: IBGE - Estimativas de População
 
 """
 
-import os
 from pathlib import Path
 
 import pandas as pd
 import sidrapy
 import sqlalchemy as sa
 
-from utils import get_periodos
-
+from utils import Config, get_periodos
 
 sidra_tabela = "6579"
 temp_dir = Path("./tmp")
 temp_dir.mkdir(exist_ok=True)
-
-db_user = os.getenv("PGUSER")
-db_host = os.getenv("PGHOST")
-db_port = os.getenv("PGPORT")
 
 db_name = "alpha"
 db_schema = "ibge"
 db_table = "estimapop"
 db_tablespace = "pg_default"
 
+config = Config(db_name)
+
 
 def get_engine():
-    PGPASSWORD = os.getenv("PGPASSWORD")
+    db_user = config.db_user
+    db_password = config.db_password
+    db_host = config.db_host
+    db_port = config.db_port
     connection_string = (
-        f"postgresql://{db_user}:{PGPASSWORD}@{db_host}:{db_port}/{db_name}"
+        f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
     )
     engine = sa.create_engine(connection_string)
     return engine
@@ -476,7 +475,7 @@ def refine(df):
 
 
 def create_table(engine):
-    user = db_user
+    user = config.db_user
     schema = db_schema
     table_name = db_table
     ddl = f"""
