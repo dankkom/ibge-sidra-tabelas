@@ -397,7 +397,6 @@ Fonte: IBGE - Estimativas de População
 
 """
 
-import configparser
 import os
 from pathlib import Path
 
@@ -408,20 +407,38 @@ import sqlalchemy as sa
 from utils import get_periodos
 
 
-tabela = "6579"
+sidra_tabela = "6579"
 temp_dir = Path("./tmp")
 temp_dir.mkdir(exist_ok=True)
 
+db_user = os.getenv("PGUSER")
+db_host = os.getenv("PGHOST")
+db_port = os.getenv("PGPORT")
+
+db_name = "alpha"
+db_schema = "ibge"
+db_table = "estimapop"
+db_tablespace = "pg_default"
+
+
+def get_engine():
+    PGPASSWORD = os.getenv("PGPASSWORD")
+    connection_string = (
+        f"postgresql://{db_user}:{PGPASSWORD}@{db_host}:{db_port}/{db_name}"
+    )
+    engine = sa.create_engine(connection_string)
+    return engine
+
 
 def download():
-    periodos = get_periodos(tabela)
+    periodos = get_periodos(sidra_tabela)
     for periodo in periodos:
-        dest_filepath = temp_dir / f"{tabela}-{periodo['id']}.csv"
+        dest_filepath = temp_dir / f"{sidra_tabela}-{periodo['id']}.csv"
         if dest_filepath.exists():
             continue
-        print(f"Downloading {tabela}-{periodo['id']}")
+        print(f"Downloading {sidra_tabela}-{periodo['id']}")
         df = sidrapy.get_table(
-            table_code=tabela,            # Tabela SIDRA 6579
+            table_code=sidra_tabela,            # Tabela SIDRA 6579
             territorial_level="6",        # Nível de Municípios
             ibge_territorial_code="all",  # Todos os Municípios
             period=periodo["id"],         # Período
@@ -438,7 +455,7 @@ def read():
     df = pd.concat(
         (
             pd.read_csv(f, skiprows=1, usecols=columns, na_values=["..."])
-            for f in temp_dir.glob(f"{tabela}-*.csv")
+            for f in temp_dir.glob(f"{sidra_tabela}-*.csv")
         ),
     )
     return df
@@ -458,16 +475,33 @@ def refine(df):
     return df
 
 
-def upload(df, nome_tabela):
-    CONFIG_DIR = Path(os.getenv("CONFIG_DIR"))
-    config = configparser.ConfigParser()
-    config.read(CONFIG_DIR / "pezcodata-db.ini")
-    connection_string = config["DB"]["CONNECTION_STRING_ALPHA"]
-    engine = sa.create_engine(connection_string)
+def create_table(engine):
+    user = db_user
+    schema = db_schema
+    table_name = db_table
+    ddl = f"""
+    CREATE TABLE IF NOT EXISTS {schema}.{table_name}
+    (
+        ano smallint NOT NULL,
+        id_municipio integer NOT NULL,
+        n_pessoas integer,
+        CONSTRAINT {table_name}_pkey PRIMARY KEY (ano, id_municipio)
+    )
+
+    TABLESPACE {db_tablespace};
+
+    ALTER TABLE IF EXISTS {schema}.{table_name}
+        OWNER to {user};
+    """
+    engine.execute(ddl)
+    engine.commit()
+
+
+def upload(df, engine):
     df.to_sql(
-        nome_tabela,
+        db_table,
         engine,
-        schema="ibge",
+        schema=db_schema,
         if_exists="append",
         index=False,
         chunksize=1_000,
@@ -478,8 +512,9 @@ def main():
     download()
     df = read()
     df = refine(df)
-    print(df)
-    upload(df, "estimapop")
+    engine = get_engine()
+    create_table(engine)
+    upload(df, engine)
 
 
 if __name__ == "__main__":
