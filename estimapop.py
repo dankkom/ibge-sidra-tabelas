@@ -397,17 +397,13 @@ Fonte: IBGE - Estimativas de População
 
 """
 
-from pathlib import Path
-
 import pandas as pd
 import sidrapy
 import sqlalchemy as sa
 
-from utils import Config, get_periodos
+from utils import Config, get_periodos, temp_dir
 
 sidra_tabela = "6579"
-temp_dir = Path("./tmp")
-temp_dir.mkdir(exist_ok=True)
 
 db_name = "alpha"
 db_schema = "ibge"
@@ -432,7 +428,7 @@ def get_engine():
 def download():
     periodos = get_periodos(sidra_tabela)
     for periodo in periodos:
-        dest_filepath = temp_dir / f"{sidra_tabela}-{periodo['id']}.csv"
+        dest_filepath = temp_dir() / f"{sidra_tabela}-{periodo['id']}.csv"
         if dest_filepath.exists():
             continue
         print(f"Downloading {sidra_tabela}-{periodo['id']}")

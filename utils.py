@@ -1,5 +1,6 @@
 import configparser
 import os
+import tempfile
 from pathlib import Path
 
 import requests
@@ -23,3 +24,9 @@ def get_periodos(agregado):
     url = BASE_URL + "{agregado}/periodos".format(agregado=agregado)
     response = requests.get(url)
     return response.json()
+
+
+def temp_dir():
+    tmp = Path(tempfile.gettempdir()) / "ibge-tabelas"
+    tmp.mkdir(exist_ok=True)
+    return tmp
