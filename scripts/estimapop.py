@@ -401,31 +401,11 @@ import pandas as pd
 import sidrapy
 import sqlalchemy as sa
 
-from utils import Config, get_periodos, temp_dir
-
-sidra_tabela = "6579"
-
-db_name = "alpha"
-db_schema = "ibge"
-db_table = "estimapop"
-db_tablespace = "pg_default"
-
-config = Config(db_name)
+from ibge_tabelas.config import Config
+from ibge_tabelas.utils import get_engine, get_periodos, temp_dir
 
 
-def get_engine():
-    db_user = config.db_user
-    db_password = config.db_password
-    db_host = config.db_host
-    db_port = config.db_port
-    connection_string = (
-        f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
-    )
-    engine = sa.create_engine(connection_string)
-    return engine
-
-
-def download():
+def download(sidra_tabela: str):
     periodos = get_periodos(sidra_tabela)
     for periodo in periodos:
         dest_filepath = temp_dir() / f"{sidra_tabela}-{periodo['id']}.csv"
@@ -433,15 +413,15 @@ def download():
             continue
         print(f"Downloading {sidra_tabela}-{periodo['id']}")
         df = sidrapy.get_table(
-            table_code=sidra_tabela,            # Tabela SIDRA 6579
-            territorial_level="6",        # Nível de Municípios
+            table_code=sidra_tabela,  # Tabela SIDRA 6579
+            territorial_level="6",  # Nível de Municípios
             ibge_territorial_code="all",  # Todos os Municípios
-            period=periodo["id"],         # Período
+            period=periodo["id"],  # Período
         )
         df.to_csv(dest_filepath, index=False, encoding="utf-8")
 
 
-def read():
+def read(sidra_tabela: str) -> pd.DataFrame:
     columns = (
         "Ano",
         "Município (Código)",
@@ -456,24 +436,22 @@ def read():
     return df
 
 
-def refine(df):
-    df = (
-        df.dropna(subset="Valor")
-        .rename(
-            columns={
-                "Ano": "ano",
-                "Município (Código)": "id_municipio",
-                "Valor": "n_pessoas",
-            }
-        )
+def refine(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.dropna(subset="Valor").rename(
+        columns={
+            "Ano": "ano",
+            "Município (Código)": "id_municipio",
+            "Valor": "n_pessoas",
+        }
     )
     return df
 
 
-def create_table(engine):
+def create_table(engine: sa.engine.Engine, config: Config):
     user = config.db_user
-    schema = db_schema
-    table_name = db_table
+    schema = config.db_schema
+    table_name = config.db_table
+    tablespace = config.db_tablespace
     ddl = f"""
     CREATE TABLE IF NOT EXISTS {schema}.{table_name}
     (
@@ -483,7 +461,7 @@ def create_table(engine):
         CONSTRAINT {table_name}_pkey PRIMARY KEY (ano, id_municipio)
     )
 
-    TABLESPACE {db_tablespace};
+    TABLESPACE {tablespace};
 
     ALTER TABLE IF EXISTS {schema}.{table_name}
         OWNER to {user};
@@ -491,11 +469,11 @@ def create_table(engine):
     engine.execute(ddl)
 
 
-def upload(df, engine):
+def upload(df: pd.DataFrame, engine: sa.engine.Engine, config: Config):
     df.to_sql(
-        db_table,
+        config.db_table,
         engine,
-        schema=db_schema,
+        schema=config.db_schema,
         if_exists="append",
         index=False,
         chunksize=1_000,
@@ -503,12 +481,15 @@ def upload(df, engine):
 
 
 def main():
-    download()
-    df = read()
+    sidra_tabela = "6579"
+    db_table = "estimapop"
+    config = Config(db_table)
+    download(sidra_tabela)
+    df = read(sidra_tabela)
     df = refine(df)
-    engine = get_engine()
-    create_table(engine)
-    upload(df, engine)
+    engine = get_engine(config)
+    create_table(engine, config)
+    upload(df, engine, config)
 
 
 if __name__ == "__main__":
