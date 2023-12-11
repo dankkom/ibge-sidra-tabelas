@@ -4,7 +4,7 @@ from pathlib import Path
 import requests
 import sqlalchemy as sa
 
-from .config import Config, TMP_DIR
+from .config import TMP_DIR, Config
 
 BASE_URL = "https://servicodados.ibge.gov.br/api/v3/agregados/"
 

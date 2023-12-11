@@ -93,7 +93,7 @@ def main():
     df = read(sidra_tabela)
     df = refine(df)
     engine = get_engine(config)
-    create_table(engine)
+    create_table(engine, config)
     upload(df, engine, config)
 
 
