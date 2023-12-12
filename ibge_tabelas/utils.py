@@ -1,22 +1,14 @@
+import tempfile
 from importlib import resources
 from pathlib import Path
 
-import requests
 import sqlalchemy as sa
 
-from .config import TMP_DIR, Config
-
-BASE_URL = "https://servicodados.ibge.gov.br/api/v3/agregados/"
-
-
-def get_periodos(agregado):
-    url = BASE_URL + "{agregado}/periodos".format(agregado=agregado)
-    response = requests.get(url)
-    return response.json()
+from .config import Config
 
 
 def temp_dir() -> Path:
-    tmp = Path(TMP_DIR)
+    tmp = Path(tempfile.gettempdir()) / "ibge_tabelas"
     tmp.mkdir(exist_ok=True)
     return tmp
 

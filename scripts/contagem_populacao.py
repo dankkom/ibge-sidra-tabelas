@@ -4,7 +4,8 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
 from ibge_tabelas.config import Config
-from ibge_tabelas.utils import get_engine, get_periodos, temp_dir
+from ibge_tabelas.sidra import get_periodos
+from ibge_tabelas.utils import get_engine, temp_dir
 
 
 def download(sidra_tabela: str):

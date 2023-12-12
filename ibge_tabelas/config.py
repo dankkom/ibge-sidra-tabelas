@@ -1,8 +1,6 @@
 import configparser
 from pathlib import Path
 
-TMP_DIR = Path("tmp")
-
 
 class Config:
     def __init__(self, db_table):

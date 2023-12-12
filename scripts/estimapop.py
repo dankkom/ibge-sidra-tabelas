@@ -400,9 +400,11 @@ Fonte: IBGE - Estimativas de População
 import pandas as pd
 import sidrapy
 import sqlalchemy as sa
+from sqlalchemy.orm import Session
 
 from ibge_tabelas.config import Config
-from ibge_tabelas.utils import get_engine, get_periodos, temp_dir
+from ibge_tabelas.sidra import get_periodos
+from ibge_tabelas.utils import get_engine, temp_dir
 
 
 def download(sidra_tabela: str):
@@ -430,7 +432,7 @@ def read(sidra_tabela: str) -> pd.DataFrame:
     df = pd.concat(
         (
             pd.read_csv(f, skiprows=1, usecols=columns, na_values=["..."])
-            for f in temp_dir.glob(f"{sidra_tabela}-*.csv")
+            for f in temp_dir().glob(f"{sidra_tabela}-*.csv")
         ),
     )
     return df
@@ -466,7 +468,8 @@ def create_table(engine: sa.engine.Engine, config: Config):
     ALTER TABLE IF EXISTS {schema}.{table_name}
         OWNER to {user};
     """
-    engine.execute(ddl)
+    with Session(engine) as session:
+        session.execute(ddl)
 
 
 def upload(df: pd.DataFrame, engine: sa.engine.Engine, config: Config):
