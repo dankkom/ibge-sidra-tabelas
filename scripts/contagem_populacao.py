@@ -72,6 +72,7 @@ def create_table(engine: sa.engine.Engine, config: Config):
     )
     with Session(engine) as session:
         session.execute(ddl)
+        session.commit()
 
 
 def upload(df: pd.DataFrame, engine: sa.engine.Engine, config: Config):
@@ -86,15 +87,20 @@ def upload(df: pd.DataFrame, engine: sa.engine.Engine, config: Config):
 
 
 def main():
-    sidra_tabela = "793"
+    sidra_tabelas = (
+        "305",
+        "793",
+    )
     db_table = "contagem_populacao"
     config = Config(db_table=db_table)
-    download(sidra_tabela)
-    df = read(sidra_tabela)
-    df = refine(df)
     engine = get_engine(config)
     create_table(engine, config)
-    upload(df, engine, config)
+
+    for sidra_tabela in sidra_tabelas:
+        download(sidra_tabela)
+        df = read(sidra_tabela)
+        df = refine(df)
+        upload(df, engine, config)
 
 
 if __name__ == "__main__":
