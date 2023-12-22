@@ -4,8 +4,9 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
 from ibge_tabelas.config import Config
+from ibge_tabelas import database
 from ibge_tabelas.sidra import get_periodos
-from ibge_tabelas.utils import get_engine, temp_dir
+from ibge_tabelas.utils import temp_dir
 
 
 def download(sidra_tabela: str):
@@ -76,17 +77,6 @@ def create_table(engine: sa.engine.Engine, config: Config):
         session.commit()
 
 
-def upload(df: pd.DataFrame, engine: sa.engine.Engine, config: Config):
-    df.to_sql(
-        config.db_table,
-        engine,
-        schema=config.db_schema,
-        if_exists="append",
-        index=False,
-        chunksize=1_000,
-    )
-
-
 def main():
     sidra_tabelas = (
         "305",
@@ -94,14 +84,14 @@ def main():
     )
     db_table = "contagem_populacao"
     config = Config(db_table=db_table)
-    engine = get_engine(config)
+    engine = database.get_engine(config)
     create_table(engine, config)
 
     for sidra_tabela in sidra_tabelas:
         download(sidra_tabela)
         df = read(sidra_tabela)
         df = refine(df)
-        upload(df, engine, config)
+        database.load(df, engine, config)
 
 
 if __name__ == "__main__":

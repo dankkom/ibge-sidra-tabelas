@@ -403,8 +403,9 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
 from ibge_tabelas.config import Config
+from ibge_tabelas import database
 from ibge_tabelas.sidra import get_periodos
-from ibge_tabelas.utils import get_engine, temp_dir
+from ibge_tabelas.utils import temp_dir
 
 
 def download(sidra_tabela: str):
@@ -470,17 +471,7 @@ def create_table(engine: sa.engine.Engine, config: Config):
     """
     with Session(engine) as session:
         session.execute(ddl)
-
-
-def upload(df: pd.DataFrame, engine: sa.engine.Engine, config: Config):
-    df.to_sql(
-        config.db_table,
-        engine,
-        schema=config.db_schema,
-        if_exists="append",
-        index=False,
-        chunksize=1_000,
-    )
+        session.commit()
 
 
 def main():
@@ -490,9 +481,9 @@ def main():
     download(sidra_tabela)
     df = read(sidra_tabela)
     df = refine(df)
-    engine = get_engine(config)
+    engine = database.get_engine(config)
     create_table(engine, config)
-    upload(df, engine, config)
+    database.load(df, engine, config)
 
 
 if __name__ == "__main__":
