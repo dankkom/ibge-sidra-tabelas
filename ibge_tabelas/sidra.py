@@ -3,18 +3,18 @@ from pathlib import Path
 import requests
 import sidrapy
 
-from .utils import get_periodos, temp_dir
+from .utils import temp_dir
 
 BASE_URL = "https://servicodados.ibge.gov.br/api/v3/agregados/"
 
 
-def get_periodos(agregado):
+def get_periodos(agregado: str):
     url = BASE_URL + "{agregado}/periodos".format(agregado=agregado)
     response = requests.get(url)
     return response.json()
 
 
-def get_localidades(agregado, nivel):
+def get_localidades(agregado: str, nivel: str) -> list[dict[str, str]]:
     url = BASE_URL + "{agregado}/localidades/{nivel}".format(
         agregado=agregado,
         nivel=nivel,
@@ -49,6 +49,7 @@ def download_table(
     for periodo in periodos:
         dest_filepath = temp_dir() / f"{sidra_tabela}-{periodo['id']}.csv"
         if dest_filepath.exists():
+            filepaths.append(dest_filepath)
             continue
         print(f"Downloading {sidra_tabela}-{periodo['id']}")
         df = sidrapy.get_table(
