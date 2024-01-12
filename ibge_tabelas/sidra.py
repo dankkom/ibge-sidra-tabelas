@@ -14,6 +14,15 @@ def get_periodos(agregado):
     return response.json()
 
 
+def get_localidades(agregado, nivel):
+    url = BASE_URL + "{agregado}/localidades/{nivel}".format(
+        agregado=agregado,
+        nivel=nivel,
+    )
+    response = requests.get(url)
+    return response.json()
+
+
 def download_table(
     sidra_tabela: str,
     territorial_level: str,
