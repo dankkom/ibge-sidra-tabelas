@@ -29,7 +29,6 @@ def download_table(
     ibge_territorial_code: str,
     variable: str = None,
     classifications: dict = None,
-    categories: str = None,
 ) -> list[Path]:
     """Download a SIDRA table in CSV format on temp_dir()
 
@@ -38,8 +37,7 @@ def download_table(
         territorial_level (str): territorial level code
         ibge_territorial_code (str): IBGE territorial code
         variable (str, optional): variable code. Defaults to None.
-        classifications (dict, optional): classifications codes. Defaults to None.
-        categories (str, optional): categories codes. Defaults to None.
+        classifications (dict, optional): classifications and categories codes. Defaults to None.
 
     Returns:
         list[Path]: list of downloaded files
@@ -59,7 +57,6 @@ def download_table(
             period=periodo["id"],  # Período
             variable=variable,  # Variáveis
             classifications=classifications,
-            categories=categories,
         )
         df.to_csv(dest_filepath, index=False, encoding="utf-8")
         filepaths.append(dest_filepath)
