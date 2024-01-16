@@ -2,10 +2,6 @@ import tempfile
 from importlib import resources
 from pathlib import Path
 
-import sqlalchemy as sa
-
-from .config import Config
-
 
 def temp_dir() -> Path:
     tmp = Path(tempfile.gettempdir()) / "ibge_tabelas"
