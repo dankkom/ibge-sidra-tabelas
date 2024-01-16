@@ -24,7 +24,7 @@ def get_filename(
     variable: str = "allxp",
     classifications: dict[str, str] = None,
 ):
-    name = f"t{sidra_tabela}_p{periodo}"
+    name = f"t-{sidra_tabela}_p-{periodo}"
     name += f"_n{territorial_level}-{ibge_territorial_code}"
     name += f"_v-{variable}"
     if classifications is None:
