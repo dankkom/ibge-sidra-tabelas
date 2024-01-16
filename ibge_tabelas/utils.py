@@ -1,6 +1,7 @@
 import tempfile
 from importlib import resources
 from pathlib import Path
+from typing import Any
 
 
 def temp_dir() -> Path:
@@ -27,3 +28,23 @@ def get_filename(
     name += f"_v-{variable}"
     name += ".csv"
     return name
+
+
+def list_classificacoes(
+    classificacoes: list[dict],
+    data: dict[str, str] = None,
+) -> list[dict[str, str]]:
+    """Recursively list all classifications and categories"""
+    if data is None:
+        data = {}
+    for i, classificacao in enumerate(classificacoes, 1):
+        classificacao_id = classificacao["id"]
+        for categoria in classificacao["categorias"]:
+            categoria_id = str(categoria["id"])
+            if categoria_id == "0":
+                continue
+            data[f"c{classificacao_id}"] = categoria_id
+            if len(classificacoes) == 1:
+                yield data
+            else:
+                yield from list_classificacoes(classificacoes[i:], data)
