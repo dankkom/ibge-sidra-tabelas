@@ -57,6 +57,7 @@ def download_table(
             territorial_level=territorial_level,
             ibge_territorial_code=ibge_territorial_code,
             variable=variable,
+            classifications=classifications,
         )
         dest_filepath = temp_dir() / filename
         if dest_filepath.exists():
