@@ -23,6 +23,12 @@ def get_localidades(agregado: str, nivel: str) -> list[dict[str, str]]:
     return response.json()
 
 
+def get_metadados(agregado: str) -> dict[str, str]:
+    url = BASE_URL + "{agregado}/metadados".format(agregado=agregado)
+    response = requests.get(url)
+    return response.json()
+
+
 def download_table(
     sidra_tabela: str,
     territorial_level: str,
