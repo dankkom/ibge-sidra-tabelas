@@ -3,7 +3,7 @@ from pathlib import Path
 import requests
 import sidrapy
 
-from .utils import temp_dir
+from .utils import get_filename, temp_dir
 
 BASE_URL = "https://servicodados.ibge.gov.br/api/v3/agregados/"
 
@@ -45,7 +45,14 @@ def download_table(
     filepaths = []
     periodos = get_periodos(sidra_tabela)
     for periodo in periodos:
-        dest_filepath = temp_dir() / f"{sidra_tabela}-{periodo['id']}.csv"
+        filename = get_filename(
+            sidra_tabela=sidra_tabela,
+            periodo=periodo["id"],
+            territorial_level=territorial_level,
+            ibge_territorial_code=ibge_territorial_code,
+            variable=variable,
+        )
+        dest_filepath = temp_dir() / filename
         if dest_filepath.exists():
             filepaths.append(dest_filepath)
             continue
