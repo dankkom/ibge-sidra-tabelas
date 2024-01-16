@@ -33,7 +33,7 @@ def get_filename(
 def list_classificacoes(
     classificacoes: list[dict],
     data: dict[str, str] = None,
-) -> list[dict[str, str]]:
+) -> dict[str, str]:
     """Recursively list all classifications and categories"""
     if data is None:
         data = {}
