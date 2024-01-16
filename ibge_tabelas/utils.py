@@ -47,7 +47,7 @@ def list_classificacoes(
             categoria_id = str(categoria["id"])
             if categoria_id == "0":
                 continue
-            data[f"c{classificacao_id}"] = categoria_id
+            data[f"{classificacao_id}"] = categoria_id
             if len(classificacoes) == 1:
                 yield data
             else:
