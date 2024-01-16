@@ -22,10 +22,14 @@ def get_filename(
     territorial_level: str,
     ibge_territorial_code: str,
     variable: str = "allxp",
+    classifications: dict[str, str] = None,
 ):
     name = f"t{sidra_tabela}_p{periodo}"
     name += f"_n{territorial_level}-{ibge_territorial_code}"
     name += f"_v-{variable}"
+    if classifications is None:
+        for classificacao, categoria in classifications.items():
+            name += f"_c{classificacao}-{categoria}"
     name += ".csv"
     return name
 
