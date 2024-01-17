@@ -34,7 +34,7 @@ def get_filename(
     return name
 
 
-def list_classificacoes(
+def unnest_classificacoes(
     classificacoes: list[dict],
     data: dict[str, str] = None,
 ) -> dict[str, str]:
@@ -49,6 +49,6 @@ def list_classificacoes(
                 continue
             data[f"{classificacao_id}"] = categoria_id
             if len(classificacoes) == 1:
-                yield data
+                yield dict(**data)
             else:
-                yield from list_classificacoes(classificacoes[i:], data)
+                yield from unnest_classificacoes(classificacoes[i:], data)
