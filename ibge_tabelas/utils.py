@@ -1,7 +1,6 @@
 import tempfile
 from importlib import resources
 from pathlib import Path
-from typing import Any
 
 
 def temp_dir() -> Path:
