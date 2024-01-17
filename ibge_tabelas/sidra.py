@@ -63,7 +63,7 @@ def download_table(
         if dest_filepath.exists():
             filepaths.append(dest_filepath)
             continue
-        print(f"Downloading {sidra_tabela}-{periodo['id']}")
+        print(f"Downloading {filename}")
         df = sidrapy.get_table(
             table_code=sidra_tabela,  # Tabela SIDRA
             territorial_level=territorial_level,  # Nível de Municípios
