@@ -27,7 +27,7 @@ def get_filename(
     name = f"t-{sidra_tabela}_p-{periodo}"
     name += f"_n{territorial_level}-{ibge_territorial_code}"
     name += f"_v-{variable}"
-    if classifications is None:
+    if classifications is not None:
         for classificacao, categoria in classifications.items():
             name += f"_c{classificacao}-{categoria}"
     name += ".csv"
