@@ -1,12 +1,13 @@
-import tempfile
 from importlib import resources
 from pathlib import Path
 
+from .config import DATA_DIR
 
-def temp_dir() -> Path:
-    tmp = Path(tempfile.gettempdir()) / "ibge_tabelas"
-    tmp.mkdir(exist_ok=True)
-    return tmp
+
+def get_data_dir() -> Path:
+    data_dir = DATA_DIR / "raw" / "ibge-tabelas"
+    data_dir.mkdir(exist_ok=True, parents=True)
+    return data_dir
 
 
 def load_municipios():
