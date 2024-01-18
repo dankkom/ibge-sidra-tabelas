@@ -1,31 +1,15 @@
+from pathlib import Path
+
 import pandas as pd
-import sidrapy
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
-from ibge_tabelas.config import Config
 from ibge_tabelas import database
-from ibge_tabelas.sidra import get_periodos
-from ibge_tabelas.utils import temp_dir
+from ibge_tabelas.config import Config
+from ibge_tabelas.sidra import download_table
 
 
-def download(sidra_tabela: str):
-    periodos = get_periodos(sidra_tabela)
-    for periodo in periodos:
-        dest_filepath = temp_dir() / f"{sidra_tabela}-{periodo['id']}.csv"
-        if dest_filepath.exists():
-            continue
-        print(f"Downloading {sidra_tabela}-{periodo['id']}")
-        df = sidrapy.get_table(
-            table_code=sidra_tabela,  # Tabela SIDRA 793
-            territorial_level="6",  # Nível de Municípios
-            ibge_territorial_code="all",  # Todos os Municípios
-            period=periodo["id"],  # Período
-        )
-        df.to_csv(dest_filepath, index=False, encoding="utf-8")
-
-
-def read(sidra_tabela: str) -> pd.DataFrame:
+def read(filepaths: list[Path]) -> pd.DataFrame:
     columns = (
         "Ano",
         "Município (Código)",
@@ -33,8 +17,8 @@ def read(sidra_tabela: str) -> pd.DataFrame:
     )
     df = pd.concat(
         (
-            pd.read_csv(f, skiprows=1, usecols=columns, na_values=["..."])
-            for f in temp_dir().glob(f"{sidra_tabela}-*.csv")
+            pd.read_csv(fp, skiprows=1, usecols=columns, na_values=["...", "-"])
+            for fp in filepaths
         ),
     )
     return df
@@ -88,8 +72,12 @@ def main():
     create_table(engine, config)
 
     for sidra_tabela in sidra_tabelas:
-        download(sidra_tabela)
-        df = read(sidra_tabela)
+        filepaths = download_table(
+            sidra_tabela=sidra_tabela,
+            territorial_level="6",
+            ibge_territorial_code="all",
+        )
+        df = read(filepaths)
         df = refine(df)
         database.load(df, engine, config)
 
