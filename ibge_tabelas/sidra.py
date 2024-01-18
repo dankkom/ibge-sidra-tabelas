@@ -3,7 +3,7 @@ from pathlib import Path
 import requests
 import sidrapy
 
-from .utils import get_filename, temp_dir
+from .utils import get_filename, get_data_dir
 
 BASE_URL = "https://servicodados.ibge.gov.br/api/v3/agregados/"
 
@@ -59,7 +59,8 @@ def download_table(
             variable=variable,
             classifications=classifications,
         )
-        dest_filepath = temp_dir() / filename
+        dest_filepath = get_data_dir() / f"t-{sidra_tabela}" / filename
+        dest_filepath.parent.mkdir(exist_ok=True, parents=True)
         if dest_filepath.exists():
             filepaths.append(dest_filepath)
             continue
