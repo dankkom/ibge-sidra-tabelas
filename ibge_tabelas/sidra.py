@@ -33,7 +33,7 @@ def download_table(
     sidra_tabela: str,
     territorial_level: str,
     ibge_territorial_code: str,
-    variable: str = None,
+    variable: str = "allxp",
     classifications: dict = None,
 ) -> list[Path]:
     """Download a SIDRA table in CSV format on temp_dir()
