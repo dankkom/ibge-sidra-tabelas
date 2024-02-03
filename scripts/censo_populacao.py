@@ -69,7 +69,7 @@ COMMENT ON TABLE {schema}.{table_name}
     IS '{comment}';
     """
     with Session(engine) as session:
-        session.execute(ddl)
+        session.execute(sa.text(ddl))
         session.commit()
 
 

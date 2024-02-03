@@ -40,8 +40,7 @@ def create_table(engine: sa.engine.Engine, config: Config):
     schema = config.db_schema
     table_name = config.db_table
     tablespace = config.db_tablespace
-    ddl = sa.text(
-        f"""
+    ddl = f"""
     CREATE TABLE IF NOT EXISTS {schema}.{table_name}
     (
         ano smallint NOT NULL,
@@ -55,9 +54,8 @@ def create_table(engine: sa.engine.Engine, config: Config):
     ALTER TABLE IF EXISTS {schema}.{table_name}
         OWNER to {user};
     """
-    )
     with Session(engine) as session:
-        session.execute(ddl)
+        session.execute(sa.text(ddl))
         session.commit()
 
 

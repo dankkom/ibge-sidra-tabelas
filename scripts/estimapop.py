@@ -454,7 +454,7 @@ def create_table(engine: sa.engine.Engine, config: Config):
         OWNER to {user};
     """
     with Session(engine) as session:
-        session.execute(ddl)
+        session.execute(sa.text(ddl))
         session.commit()
 
 
