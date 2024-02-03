@@ -63,6 +63,7 @@ def download_table(
         dest_filepath.parent.mkdir(exist_ok=True, parents=True)
         if dest_filepath.exists():
             filepaths.append(dest_filepath)
+            print("File already exists", dest_filepath)
             continue
         print(f"Downloading {filename}")
         df = sidrapy.get_table(
