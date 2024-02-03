@@ -225,7 +225,7 @@ def refine(df, tipo_cultura):
 
 
 def main():
-    # download()
+    download()
 
     db_table = "producao_agricola_municipal"
     config = Config(db_table)
