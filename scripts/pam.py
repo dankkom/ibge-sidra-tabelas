@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 import pandas as pd
 
 from ibge_tabelas.config import Config
-from ibge_tabelas import database, sidra, utils
+from ibge_tabelas import database, sidra, storage
 
 
 def download():
@@ -53,7 +53,7 @@ def download():
             "variable": "allxp",
             "classifications": classificacoes,  # Produto das lavouras temporárias
         }
-        for classificacoes in utils.unnest_classificacoes(
+        for classificacoes in sidra.unnest_classificacoes(
             metadados_1612["classificacoes"], {}
         )
     )
@@ -66,7 +66,7 @@ def download():
             "variable": "allxp",
             "classifications": classificacoes,  # Produto das lavouras permanentes
         }
-        for classificacoes in utils.unnest_classificacoes(
+        for classificacoes in sidra.unnest_classificacoes(
             metadados_1613["classificacoes"], {}
         )
     )
@@ -118,7 +118,7 @@ def read_temp_crops():
     )
     df = pd.DataFrame()
     for tabela in tabelas:
-        data_dir = utils.get_data_dir() / f"t-{tabela}"
+        data_dir = storage.get_data_dir() / f"t-{tabela}"
         print(data_dir)
         _df = pd.concat(
             (
@@ -146,7 +146,7 @@ def read_perm_crops():
     )
     df = pd.DataFrame()
     for tabela in tabelas:
-        data_dir = utils.get_data_dir() / f"t-{tabela}"
+        data_dir = storage.get_data_dir() / f"t-{tabela}"
         print(data_dir)
         _df = pd.concat(
             (
@@ -240,7 +240,7 @@ def main():
         "1612",
     )
     for tabela in tabelas_temp_crops:
-        data_dir = utils.get_data_dir() / f"t-{tabela}"
+        data_dir = storage.get_data_dir() / f"t-{tabela}"
         for f in data_dir.glob(f"t-{tabela}_*.csv"):
             print(f)
             _df = read_file(f)
@@ -251,7 +251,7 @@ def main():
         "1613",
     )
     for tabela in tabelas_perm_crops:
-        data_dir = utils.get_data_dir() / f"t-{tabela}"
+        data_dir = storage.get_data_dir() / f"t-{tabela}"
         for f in data_dir.glob(f"t-{tabela}_*.csv"):
             print(f)
             _df = read_file(f)

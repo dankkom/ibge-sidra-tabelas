@@ -3,7 +3,7 @@ from pathlib import Path
 import requests
 import sidrapy
 
-from .utils import get_filename, get_data_dir
+from .storage import get_filename, get_data_dir
 
 BASE_URL = "https://servicodados.ibge.gov.br/api/v3/agregados/"
 
@@ -77,3 +77,23 @@ def download_table(
         df.to_csv(dest_filepath, index=False, encoding="utf-8")
         filepaths.append(dest_filepath)
     return filepaths
+
+
+def unnest_classificacoes(
+    classificacoes: list[dict],
+    data: dict[str, str] = None,
+) -> dict[str, str]:
+    """Recursively list all classifications and categories"""
+    if data is None:
+        data = {}
+    for i, classificacao in enumerate(classificacoes, 1):
+        classificacao_id = classificacao["id"]
+        for categoria in classificacao["categorias"]:
+            categoria_id = str(categoria["id"])
+            if categoria_id == "0":
+                continue
+            data[f"{classificacao_id}"] = categoria_id
+            if len(classificacoes) == 1:
+                yield dict(**data)
+            else:
+                yield from unnest_classificacoes(classificacoes[i:], data)
