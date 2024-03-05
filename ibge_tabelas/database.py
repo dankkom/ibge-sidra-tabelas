@@ -1,7 +1,12 @@
+import logging
+
 import pandas as pd
 import sqlalchemy as sa
+import sqlalchemy.exc
 
 from .config import Config
+
+logger = logging.getLogger(__name__)
 
 
 def get_engine(config: Config) -> sa.engine.Engine:
@@ -18,11 +23,14 @@ def get_engine(config: Config) -> sa.engine.Engine:
 
 
 def load(df: pd.DataFrame, engine: sa.engine.Engine, config: Config):
-    df.to_sql(
-        config.db_table,
-        engine,
-        schema=config.db_schema,
-        if_exists="append",
-        index=False,
-        chunksize=1_000,
-    )
+    try:
+        df.to_sql(
+            config.db_table,
+            engine,
+            schema=config.db_schema,
+            if_exists="append",
+            index=False,
+            chunksize=1_000,
+        )
+    except sqlalchemy.exc.IntegrityError as e:
+        logger.warning("Integrity error> failed loading data into %s table", config.db_table)
