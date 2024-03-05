@@ -408,18 +408,13 @@ from ibge_tabelas.config import Config
 from ibge_tabelas.sidra import download_table
 
 
-def read(filepaths: list[Path]) -> pd.DataFrame:
+def read(filepath: Path) -> pd.DataFrame:
     columns = (
         "Ano",
         "Município (Código)",
         "Valor",
     )
-    df = pd.concat(
-        (
-            pd.read_csv(fp, skiprows=1, usecols=columns, na_values=["...", "-"])
-            for fp in filepaths
-        ),
-    )
+    df = pd.read_csv(filepath, skiprows=1, usecols=columns, na_values=["...", "-"])
     return df
 
 
@@ -462,16 +457,19 @@ def main():
     sidra_tabela = "6579"
     db_table = "estimapop"
     config = Config(db_table)
+    engine = database.get_engine(config)
+    create_table(engine, config)
+
     filepaths = download_table(
         sidra_tabela=sidra_tabela,
         territorial_level="6",
         ibge_territorial_code="all",
     )
-    df = read(filepaths)
-    df = refine(df)
-    engine = database.get_engine(config)
-    create_table(engine, config)
-    database.load(df, engine, config)
+
+    for filepath in filepaths:
+        df = read(filepath)
+        df = refine(df)
+        database.load(df, engine, config)
 
 
 if __name__ == "__main__":

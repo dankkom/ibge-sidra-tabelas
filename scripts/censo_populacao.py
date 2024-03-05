@@ -2,7 +2,6 @@
 
 
 from pathlib import Path
-from typing import Sequence
 
 import pandas as pd
 import sqlalchemy as sa
@@ -13,18 +12,13 @@ from ibge_tabelas.config import Config
 from ibge_tabelas.sidra import download_table
 
 
-def read(filepaths: Sequence[Path]) -> pd.DataFrame:
+def read(filepath: Path) -> pd.DataFrame:
     columns = (
         "Ano",
         "Município (Código)",
         "Valor",
     )
-    df = pd.concat(
-        (
-            pd.read_csv(fp, skiprows=1, usecols=columns, na_values=["...", "-"])
-            for fp in filepaths
-        ),
-    )
+    df = pd.read_csv(filepath, skiprows=1, usecols=columns, na_values=["...", "-"])
     return df
 
 
@@ -77,6 +71,9 @@ def main():
     sidra_tabela = "200"
     db_table = "censo_populacao"
     config = Config(db_table=db_table)
+    engine = database.get_engine(config)
+    create_table(engine, config)
+
     filepaths = download_table(
         sidra_tabela=sidra_tabela,
         territorial_level="6",
@@ -84,11 +81,11 @@ def main():
         variable="allxp",
         classifications={"2": "0", "1": "0", "58": "0"},
     )
-    df = read(filepaths)
-    df = refine(df)
-    engine = database.get_engine(config)
-    create_table(engine, config)
-    database.load(df, engine, config)
+
+    for filepath in filepaths:
+        df = read(filepath)
+        df = refine(df)
+        database.load(df, engine, config)
 
 
 if __name__ == "__main__":

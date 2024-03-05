@@ -9,18 +9,13 @@ from ibge_tabelas.config import Config
 from ibge_tabelas.sidra import download_table
 
 
-def read(filepaths: list[Path]) -> pd.DataFrame:
+def read(filepath: Path) -> pd.DataFrame:
     columns = (
         "Ano",
         "Município (Código)",
         "Valor",
     )
-    df = pd.concat(
-        (
-            pd.read_csv(fp, skiprows=1, usecols=columns, na_values=["...", "-"])
-            for fp in filepaths
-        ),
-    )
+    df = pd.read_csv(filepath, skiprows=1, usecols=columns, na_values=["...", "-"])
     return df
 
 
@@ -69,13 +64,17 @@ def main():
     engine = database.get_engine(config)
     create_table(engine, config)
 
+    filepaths = []
     for sidra_tabela in sidra_tabelas:
-        filepaths = download_table(
+        _filepaths = download_table(
             sidra_tabela=sidra_tabela,
             territorial_level="6",
             ibge_territorial_code="all",
         )
-        df = read(filepaths)
+        filepaths.extend(_filepaths)
+
+    for filepath in filepaths:
+        df = read(filepath)
         df = refine(df)
         database.load(df, engine, config)
 
