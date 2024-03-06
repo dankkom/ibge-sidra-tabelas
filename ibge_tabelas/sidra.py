@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Generator
 
 import requests
 import sidrapy
@@ -82,7 +83,7 @@ def download_table(
 def unnest_classificacoes(
     classificacoes: list[dict],
     data: dict[str, str] = None,
-) -> dict[str, str]:
+) -> Generator[dict[str, str], None, None]:
     """Recursively list all classifications and categories"""
     if data is None:
         data = {}
