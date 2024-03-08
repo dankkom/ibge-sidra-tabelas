@@ -1,4 +1,21 @@
-"""População brasileira por município segundo os censos do IBGE."""
+"""População brasileira por município segundo os censos do IBGE.
+
+Tabela 200 - População residente, por sexo, situação e grupos de idade -
+             Amostra - Características Gerais da População (Vide Notas)
+
+https://sidra.ibge.gov.br/tabela/200
+
+Notas:
+
+1 - Para o ano de 1991, dados do Universo. Para os demais anos, dados da
+    Amostra
+
+2 - Até o ano de 1991 os grupos de idade vão até 80 anos ou mais; a partir de
+    2000, vão até 100 anos ou mais.
+
+Fonte: IBGE - Censo Demográfico
+
+"""
 
 import pandas as pd
 import sqlalchemy as sa
