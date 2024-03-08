@@ -4,7 +4,7 @@ from typing import Generator
 import requests
 import sidrapy
 
-from .storage import get_filename, get_data_dir
+from .storage import get_filename, get_data_dir, write_file
 
 BASE_URL = "https://servicodados.ibge.gov.br/api/v3/agregados/"
 
@@ -75,7 +75,7 @@ def download_table(
             variable=variable,  # Variáveis
             classifications=classifications,
         )
-        df.to_csv(dest_filepath, index=False, encoding="utf-8")
+        write_file(df=df, dest_filepath=dest_filepath)
         filepaths.append(dest_filepath)
     return filepaths
 

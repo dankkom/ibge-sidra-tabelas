@@ -1,25 +1,11 @@
 """População brasileira por município segundo os censos do IBGE."""
 
-
-from pathlib import Path
-
 import pandas as pd
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
-from ibge_tabelas import database
+from ibge_tabelas import database, sidra, storage
 from ibge_tabelas.config import Config
-from ibge_tabelas.sidra import download_table
-
-
-def read(filepath: Path) -> pd.DataFrame:
-    columns = (
-        "Ano",
-        "Município (Código)",
-        "Valor",
-    )
-    df = pd.read_csv(filepath, skiprows=1, usecols=columns, na_values=["...", "-"])
-    return df
 
 
 def refine(df) -> pd.DataFrame:
@@ -74,7 +60,7 @@ def main():
     engine = database.get_engine(config)
     create_table(engine, config)
 
-    filepaths = download_table(
+    filepaths = sidra.download_table(
         sidra_tabela=sidra_tabela,
         territorial_level="6",
         ibge_territorial_code="all",
@@ -83,7 +69,7 @@ def main():
     )
 
     for filepath in filepaths:
-        df = read(filepath)
+        df = storage.read_file(filepath, columns=("Ano", "Município (Código)", "Valor"))
         df = refine(df)
         database.load(df, engine, config)
 

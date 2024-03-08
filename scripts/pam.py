@@ -1,16 +1,14 @@
 """Produção Agrícola Municipal"""
 
-from pathlib import Path
-
+import pandas as pd
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
-import pandas as pd
 
-from ibge_tabelas.config import Config
 from ibge_tabelas import database, sidra, storage
+from ibge_tabelas.config import Config
 
 
-def download():
+def get_tabelas():
     tabelas = (
         {
             "sidra_tabela": "839",
@@ -70,7 +68,11 @@ def download():
             metadados_1613["classificacoes"], {}
         )
     )
-    tabelas = tabelas + tabelas_1002 + tabelas_1612 + tabelas_1613
+    return tabelas + tabelas_1002 + tabelas_1612 + tabelas_1613
+
+
+def download():
+    tabelas = get_tabelas()
     for tabela in tabelas:
         sidra.download_table(**tabela)
 
@@ -103,11 +105,6 @@ def create_table(engine: sa.engine.Engine, config: Config):
         session.commit()
 
 
-def read_file(filepath: Path) -> pd.DataFrame:
-    print("Reading", filepath)
-    return pd.read_csv(filepath, skiprows=1, na_values=["...", "-"])
-
-
 def read_temp_crops():
     tabelas = (
         "839",
@@ -121,75 +118,55 @@ def read_temp_crops():
         data_dir = storage.get_data_dir() / f"t-{tabela}"
         print(data_dir)
         _df = pd.concat(
-            (
-                read_file(f)
-                for f in data_dir.glob(f"t-{tabela}_*.csv")
-            ),
+            (storage.read_file(f) for f in data_dir.glob(f"t-{tabela}_*.csv")),
             ignore_index=True,
         )
         df = pd.concat((df, _df), ignore_index=True)
-    df = (
-        df.rename(
-            columns={
-                "Produto das lavouras temporárias (Código)": "codigo_produto",
-                "Produto das lavouras temporárias": "produto",
-            },
-        )
-        .assign(tipo_cultura="Lavouras temporárias")
-    )
+    df = df.rename(
+        columns={
+            "Produto das lavouras temporárias (Código)": "codigo_produto",
+            "Produto das lavouras temporárias": "produto",
+        },
+    ).assign(tipo_cultura="Lavouras temporárias")
     return df
 
 
 def read_perm_crops():
-    tabelas = (
-        "1613",
-    )
+    tabelas = ("1613",)
     df = pd.DataFrame()
     for tabela in tabelas:
         data_dir = storage.get_data_dir() / f"t-{tabela}"
         print(data_dir)
         _df = pd.concat(
-            (
-                read_file(f)
-                for f in data_dir.glob(f"t-{tabela}_*.csv")
-            ),
+            (storage.read_file(f) for f in data_dir.glob(f"t-{tabela}_*.csv")),
             ignore_index=True,
         )
         df = pd.concat((df, _df), ignore_index=True)
-    df = (
-        df.rename(
-            columns={
-                "Produto das lavouras permanentes (Código)": "codigo_produto",
-                "Produto das lavouras permanentes": "produto",
-            },
-        )
-        .assign(tipo_cultura="Lavouras permanentes")
-    )
+    df = df.rename(
+        columns={
+            "Produto das lavouras permanentes (Código)": "codigo_produto",
+            "Produto das lavouras permanentes": "produto",
+        },
+    ).assign(tipo_cultura="Lavouras permanentes")
     return df
 
 
 def refine_temp_crops(df):
-    return (
-        df.rename(
-            columns={
-                "Produto das lavouras temporárias (Código)": "codigo_produto",
-                "Produto das lavouras temporárias": "produto",
-            },
-        )
-        .assign(tipo_cultura="Lavouras temporárias")
-    )
+    return df.rename(
+        columns={
+            "Produto das lavouras temporárias (Código)": "codigo_produto",
+            "Produto das lavouras temporárias": "produto",
+        },
+    ).assign(tipo_cultura="Lavouras temporárias")
 
 
 def refine_perm_crops(df):
-    return (
-        df.rename(
-            columns={
-                "Produto das lavouras permanentes (Código)": "codigo_produto",
-                "Produto das lavouras permanentes": "produto",
-            },
-        )
-        .assign(tipo_cultura="Lavouras permanentes")
-    )
+    return df.rename(
+        columns={
+            "Produto das lavouras permanentes (Código)": "codigo_produto",
+            "Produto das lavouras permanentes": "produto",
+        },
+    ).assign(tipo_cultura="Lavouras permanentes")
 
 
 def refine(df, tipo_cultura):
@@ -243,18 +220,16 @@ def main():
         data_dir = storage.get_data_dir() / f"t-{tabela}"
         for f in data_dir.glob(f"t-{tabela}_*.csv"):
             print(f)
-            _df = read_file(f)
+            _df = storage.read_file(f)
             _df = refine(_df, tipo_cultura="Lavouras temporárias")
             database.load(_df, engine, config)
 
-    tabelas_perm_crops = (
-        "1613",
-    )
+    tabelas_perm_crops = ("1613",)
     for tabela in tabelas_perm_crops:
         data_dir = storage.get_data_dir() / f"t-{tabela}"
         for f in data_dir.glob(f"t-{tabela}_*.csv"):
             print(f)
-            _df = read_file(f)
+            _df = storage.read_file(f)
             _df = refine(_df, tipo_cultura="Lavouras permanentes")
             database.load(_df, engine, config)
 

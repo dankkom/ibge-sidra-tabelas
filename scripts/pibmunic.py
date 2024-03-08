@@ -19,26 +19,12 @@ Estaduais de Governo e Superintendência da Zona Franca de Manaus - SUFRAMA
 
 """
 
-from pathlib import Path
-
 import pandas as pd
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
-from ibge_tabelas import database, sidra
+from ibge_tabelas import database, sidra, storage
 from ibge_tabelas.config import Config
-
-
-def read(filepath: Path) -> pd.DataFrame:
-    columns = (
-        "Ano",
-        "Município (Código)",
-        "Variável",
-        "Unidade de Medida",
-        "Valor",
-    )
-    df = pd.read_csv(filepath, skiprows=1, usecols=columns, na_values=["...", "-"])
-    return df
 
 
 def refine(df: pd.DataFrame) -> pd.DataFrame:
@@ -102,7 +88,16 @@ def main():
     engine = database.get_engine(config)
     create_table(engine, config)
     for filepath in filepaths:
-        df = read(filepath)
+        df = storage.read_file(
+            filepath,
+            columns=(
+                "Ano",
+                "Município (Código)",
+                "Variável",
+                "Unidade de Medida",
+                "Valor",
+            ),
+        )
 
         df = refine(df)
 
