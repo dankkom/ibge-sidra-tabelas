@@ -1,6 +1,12 @@
+import logging
 from pathlib import Path
+from typing import Sequence
+
+import pandas as pd
 
 from .config import DATA_DIR
+
+logger = logging.getLogger(__name__)
 
 
 def get_data_dir() -> Path:
@@ -25,3 +31,13 @@ def get_filename(
             name += f"_c{classificacao}-{categoria}"
     name += ".csv"
     return name
+
+
+def write_file(df: pd.DataFrame, dest_filepath: Path):
+    logger.info("Writing file %s", dest_filepath)
+    df.to_csv(dest_filepath, index=False, encoding="utf-8")
+
+
+def read_file(filepath: Path, columns: Sequence[str] | None = None) -> pd.DataFrame:
+    logger.info("Reading file %s", filepath)
+    return pd.read_csv(filepath, skiprows=1, usecols=columns, na_values=["...", "-"])
