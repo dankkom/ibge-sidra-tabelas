@@ -199,6 +199,8 @@ Fonte: IBGE - Produção Agrícola Municipal
 
 """
 
+from pathlib import Path
+
 import pandas as pd
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
@@ -270,10 +272,12 @@ def get_tabelas():
     return tabelas + tabelas_1002 + tabelas_1612 + tabelas_1613
 
 
-def download():
-    tabelas = get_tabelas()
+def download(tabelas: list[dict[str, str]]) -> list[Path]:
+    filepaths = []
     for tabela in tabelas:
-        sidra.download_table(**tabela)
+        _filepaths = sidra.download_table(**tabela)
+        filepaths.extend(_filepaths)
+    return filepaths
 
 
 def create_table(engine: sa.engine.Engine, config: Config):
@@ -401,7 +405,8 @@ def refine(df, tipo_cultura):
 
 
 def main():
-    download()
+    tabelas = get_tabelas()
+    download(tabelas=tabelas)
 
     db_table = "producao_agricola_municipal"
     config = Config(db_table)
