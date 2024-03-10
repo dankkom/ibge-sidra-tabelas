@@ -24,6 +24,7 @@ def get_engine(config: Config) -> sa.engine.Engine:
 
 
 def load(df: pd.DataFrame, engine: sa.engine.Engine, config: Config):
+    logger.info("Loading data into %s table", config.db_table)
     try:
         df.to_sql(
             config.db_table,
