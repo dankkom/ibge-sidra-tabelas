@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Generator
 
@@ -7,6 +8,7 @@ import sidrapy
 from .storage import get_filename, get_data_dir, write_file
 
 BASE_URL = "https://servicodados.ibge.gov.br/api/v3/agregados/"
+logger = logging.getLogger(__name__)
 
 
 def get_periodos(agregado: str):
@@ -64,9 +66,9 @@ def download_table(
         dest_filepath.parent.mkdir(exist_ok=True, parents=True)
         if dest_filepath.exists():
             filepaths.append(dest_filepath)
-            print("File already exists", dest_filepath)
+            logger.warn("File already exists: %s", dest_filepath)
             continue
-        print(f"Downloading {filename}")
+        logger.info("Downloading %s", filename)
         df = sidrapy.get_table(
             table_code=sidra_tabela,  # Tabela SIDRA
             territorial_level=territorial_level,  # Nível de Municípios
