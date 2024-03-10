@@ -2,7 +2,7 @@
 name = "ibge-tabelas"
 version = "0.1.0"
 description = "Tabelas de dados agregados do IBGE"
-authors = ["Daniel Komesu <danielkomesu@pezco.com.br>"]
+authors = ["Data Engineer <danielkomesu@pezco.com.br>"]
 
 [tool.poetry.dependencies]
 python = ">=3.10"
@@ -10,6 +10,9 @@ pandas = "*"
 SQLAlchemy = "*"
 psycopg2 = "*"
 sidrapy = "*"
+
+[tool.black]
+line-length = 120
 
 [build-system]
 requires = ["poetry-core"]
