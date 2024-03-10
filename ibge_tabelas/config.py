@@ -19,6 +19,7 @@ class Config:
         self.db_schema = self.config["database"]["schema"]
         self.db_table = db_table
         self.db_tablespace = self.config["database"]["tablespace"]
+        self.db_readonly_role = self.config["database"]["readonly_role"]
 
     def __str__(self):
         return (
@@ -30,4 +31,5 @@ class Config:
             f"db_schema: {self.db_schema}\n"
             f"db_table: {self.db_table}\n"
             f"db_tablespace: {self.db_tablespace}\n"
+            f"db_readonly_role: {self.db_readonly_role}\n"
         )
