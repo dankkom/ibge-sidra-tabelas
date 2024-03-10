@@ -517,26 +517,23 @@ def refine(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def create_table(engine: sa.engine.Engine, config: Config):
-    user = config.db_user
-    schema = config.db_schema
-    table_name = config.db_table
-    tablespace = config.db_tablespace
-    ddl = f"""
-    CREATE TABLE IF NOT EXISTS {schema}.{table_name}
-    (
-        ano smallint NOT NULL,
-        id_municipio integer NOT NULL,
-        n_pessoas integer,
-        CONSTRAINT {table_name}_pkey PRIMARY KEY (ano, id_municipio)
+    ddl = database.build_ddl(
+        schema=config.db_schema,
+        table_name=config.db_table,
+        tablespace=config.db_tablespace,
+        columns={"ano": "SMALLINT NOT NULL", "id_municipio": "TEXT NOT NULL", "n_pessoas": "INTEGER"},
+        primary_keys=("ano", "id_municipio"),
+        comment="Estimativas de população por município\nFonte: EstimaPop",
     )
-
-    TABLESPACE {tablespace};
-
-    ALTER TABLE IF EXISTS {schema}.{table_name}
-        OWNER to {user};
-    """
+    dcl = database.build_dcl(
+        schema=config.db_schema,
+        table_name=config.db_table,
+        table_owner=config.db_user,
+        table_user=config.db_readonly_role,
+    )
     with Session(engine) as session:
         session.execute(sa.text(ddl))
+        session.execute(sa.text(dcl))
         session.commit()
 
 

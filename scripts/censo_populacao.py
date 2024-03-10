@@ -37,36 +37,23 @@ def refine(df) -> pd.DataFrame:
 
 
 def create_table(engine: sa.engine.Engine, config: Config):
-    user = config.db_user
-    schema = config.db_schema
-    table_name = config.db_table
-    comment = """População por município
-Fonte: Censos Demográficos do IBGE"""
-    ddl = f"""
-CREATE TABLE IF NOT EXISTS {schema}.{table_name}
-(
-    ano smallint NOT NULL,
-    id_municipio integer NOT NULL,
-    n_pessoas integer,
-    CONSTRAINT {table_name}_pkey PRIMARY KEY (ano, id_municipio)
-)
-
-TABLESPACE pg_default;
-
-ALTER TABLE IF EXISTS {schema}.{table_name}
-    OWNER to {user};
-
-REVOKE ALL ON TABLE {schema}.{table_name} FROM pezco_readonly;
-
-GRANT ALL ON TABLE {schema}.{table_name} TO {user};
-
-GRANT SELECT ON TABLE {schema}.{table_name} TO pezco_readonly;
-
-COMMENT ON TABLE {schema}.{table_name}
-    IS '{comment}';
-    """
+    ddl = database.build_ddl(
+        schema=config.db_schema,
+        table_name=config.db_table,
+        tablespace=config.db_tablespace,
+        columns={"ano": "SMALLINT NOT NULL", "id_municipio": "TEXT NOT NULL", "n_pessoas": "INTEGER"},
+        primary_keys=("ano", "id_municipio"),
+        comment="População por município\nFonte: Censos Demográficos do IBGE",
+    )
+    dcl = database.build_dcl(
+        schema=config.db_schema,
+        table_name=config.db_table,
+        table_owner=config.db_user,
+        table_user=config.db_readonly_role,
+    )
     with Session(engine) as session:
         session.execute(sa.text(ddl))
+        session.execute(sa.text(dcl))
         session.commit()
 
 
