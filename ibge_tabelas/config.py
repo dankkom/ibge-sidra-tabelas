@@ -1,5 +1,7 @@
 import configparser
+import logging
 import os
+from logging import handlers
 from pathlib import Path
 
 DATA_DIR = Path(os.getenv("DATA_DIR", "data"))
@@ -33,3 +35,33 @@ class Config:
             f"db_tablespace: {self.db_tablespace}\n"
             f"db_readonly_role: {self.db_readonly_role}\n"
         )
+
+
+def setup_logging(logger_name: str, log_filepath: Path):
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.DEBUG)
+    logger.propagate = False
+
+    log_formatter = logging.Formatter(
+        fmt="%(asctime)s.%(msecs)03d %(levelname)s %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    # File log
+    filehandler = handlers.RotatingFileHandler(
+        filename=log_filepath,
+        mode="a",
+        maxBytes=50 * 2**20,
+        backupCount=100,
+    )
+    filehandler.setFormatter(log_formatter)
+    filehandler.setLevel(logging.INFO)
+    logger.addHandler(filehandler)
+
+    # Console log
+    streamhandler = logging.StreamHandler()
+    streamhandler.setFormatter(log_formatter)
+    streamhandler.setLevel(logging.DEBUG)
+    logger.addHandler(streamhandler)
+
+    return logger
