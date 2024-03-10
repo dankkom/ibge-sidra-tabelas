@@ -86,7 +86,7 @@ def main():
     )
 
     for filepath in filepaths:
-        df = storage.read_file(filepath, columns=("Ano", "Município (Código)", "Valor"))
+        df = storage.read_file(filepath, usecols=("Ano", "Município (Código)", "Valor"))
         df = refine(df)
         database.load(df, engine, config)
 

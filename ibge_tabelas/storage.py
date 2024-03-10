@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Sequence
+from typing import Any
 
 import pandas as pd
 
@@ -38,6 +38,8 @@ def write_file(df: pd.DataFrame, dest_filepath: Path):
     df.to_csv(dest_filepath, index=False, encoding="utf-8")
 
 
-def read_file(filepath: Path, columns: Sequence[str] | None = None) -> pd.DataFrame:
+def read_file(filepath: Path, **read_csv_args: Any) -> pd.DataFrame:
     logger.info("Reading file %s", filepath)
-    return pd.read_csv(filepath, skiprows=1, usecols=columns, na_values=["...", "-"])
+    data = pd.read_csv(filepath, skiprows=1, na_values=["...", "-"], **read_csv_args)
+    data = data.dropna(subset="Valor")
+    return data
