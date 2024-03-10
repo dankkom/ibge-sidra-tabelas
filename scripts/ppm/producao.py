@@ -1,30 +1,14 @@
-"""Pesquisa da Pecuária Municipal - Ovinos tosquiados & Vacas ordenhadas
+"""Pesquisa da Pecuária Municipal - Produção de origem animal & Produção da aquicultura
 
-https://sidra.ibge.gov.br/pesquisa/ppm/tabelas
+Tabela 74 - Produção de origem animal, por tipo de produto (Vide Notas)
 
-Objetivo
-
-Fornecer informações estatísticas sobre efetivo dos rebanhos, ovinos
-tosquiados, vacas ordenhadas, produtos de origem animal e produção da
-aquicultura.
-
-Periodicidade e âmbito de investigação
-
-O inquérito é anual e atinge todo o território nacional, com informações para o
-Brasil, Regiões Geográficas, Unidades da Federação, Mesorregiões Geográficas,
-Microrregiões Geográficas e Municípios.
+https://sidra.ibge.gov.br/tabela/74
 
 ---
 
-Tabela 95 - Ovinos tosquiados (Vide Notas)
+Tabela 3940 - Produção da aquicultura, por tipo de produto (Vide Notas)
 
-https://sidra.ibge.gov.br/tabela/95
-
----
-
-Tabela 94 - Vacas ordenhadas (Vide Notas)
-
-https://sidra.ibge.gov.br/tabela/94
+https://sidra.ibge.gov.br/tabela/3940
 
 Fonte: IBGE - Pesquisa da Pecuária Municipal
 
@@ -41,20 +25,24 @@ from ibge_tabelas.config import Config
 
 
 def get_tabelas() -> list[dict[str, str]]:
-    tabelas = [
-        {
-            "sidra_tabela": "94",
-            "territorial_level": "6",
-            "ibge_territorial_code": "all",
-            "variable": "allxp",
-        },
-        {
-            "sidra_tabela": "95",
-            "territorial_level": "6",
-            "ibge_territorial_code": "all",
-            "variable": "allxp",
-        },
-    ]
+    tabelas = []
+    sidra_tabelas_grandes = (
+        "74",
+        "3940",
+    )
+    for tabela_grande in sidra_tabelas_grandes:
+        metadados = sidra.get_metadados(tabela_grande)
+        _tabelas = [
+            {
+                "sidra_tabela": tabela_grande,
+                "territorial_level": "6",
+                "ibge_territorial_code": "all",
+                "variable": "allxp",
+                "classifications": classificacoes,
+            }
+            for classificacoes in sidra.unnest_classificacoes(metadados["classificacoes"], {})
+        ]
+        tabelas.extend(_tabelas)
     return tabelas
 
 
@@ -75,11 +63,13 @@ def create_table(engine: sa.Engine, config: Config):
         columns={
             "ano": "SMALLINT NOT NULL",
             "id_municipio": "TEXT NOT NULL",
+            "grupo_produto": "TEXT NOT NULL",
+            "produto": "TEXT NOT NULL",
             "variavel": "TEXT NOT NULL",
             "unidade": "TEXT NOT NULL",
             "valor": "DOUBLE PRECISION",
         },
-        primary_keys=("ano", "id_municipio", "variavel"),
+        primary_keys=("ano", "id_municipio", "produto", "variavel"),
     )
     dcl = database.build_dcl(
         schema=config.db_schema,
@@ -101,14 +91,18 @@ def refine(df: pd.DataFrame) -> pd.DataFrame:
         "Ano": "ano",
         "Variável": "variavel",
     }
+    if "Tipo de produto de origem animal" in df.columns:
+        grupo_produto = "Pecuária"
+        columns_rename |= {"Tipo de produto de origem animal": "produto"}
+    elif "Tipo de produto da aquicultura" in df.columns:
+        grupo_produto = "Aquicultura"
+        columns_rename |= {"Tipo de produto da aquicultura": "produto"}
     df = df[list(columns_rename.keys())]
     df = df.rename(columns=columns_rename)
     df = df.assign(
-        valor=lambda x: x["valor"].astype(int),
+        grupo_produto=grupo_produto,
         variavel=lambda x: x["variavel"].replace(
-            {
-                "Ovinos tosquiados nos estabelecimentos agropecuários": "Ovinos tosquiados",
-            }
+            {"Produção de origem animal": "Produção", "Produção da aquicultura": "Produção"}
         ),
     )
     return df
@@ -118,7 +112,7 @@ def main():
     tabelas = get_tabelas()
     data_files = download(tabelas=tabelas)
 
-    db_table = "ppm_exploracao"
+    db_table = "ppm_producao"
     config = Config(db_table=db_table)
     engine = database.get_engine(config)
     create_table(engine, config)

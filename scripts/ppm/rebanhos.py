@@ -1,30 +1,16 @@
-"""Pesquisa da Pecuária Municipal - Ovinos tosquiados & Vacas ordenhadas
+"""Pesquisa da Pecuária Municipal - Efetivo dos rebanhos, por tipo de rebanho
 
-https://sidra.ibge.gov.br/pesquisa/ppm/tabelas
+Tabela 3939 - Efetivo dos rebanhos, por tipo de rebanho (Vide Notas)
 
-Objetivo
-
-Fornecer informações estatísticas sobre efetivo dos rebanhos, ovinos
-tosquiados, vacas ordenhadas, produtos de origem animal e produção da
-aquicultura.
-
-Periodicidade e âmbito de investigação
-
-O inquérito é anual e atinge todo o território nacional, com informações para o
-Brasil, Regiões Geográficas, Unidades da Federação, Mesorregiões Geográficas,
-Microrregiões Geográficas e Municípios.
+https://sidra.ibge.gov.br/tabela/3939
 
 ---
 
-Tabela 95 - Ovinos tosquiados (Vide Notas)
+Tabela 73 - Efetivo dos rebanhos, por tipo de rebanho (série encerrada) (Vide Notas)
 
-https://sidra.ibge.gov.br/tabela/95
+https://sidra.ibge.gov.br/tabela/73
 
 ---
-
-Tabela 94 - Vacas ordenhadas (Vide Notas)
-
-https://sidra.ibge.gov.br/tabela/94
 
 Fonte: IBGE - Pesquisa da Pecuária Municipal
 
@@ -41,20 +27,21 @@ from ibge_tabelas.config import Config
 
 
 def get_tabelas() -> list[dict[str, str]]:
-    tabelas = [
-        {
-            "sidra_tabela": "94",
-            "territorial_level": "6",
-            "ibge_territorial_code": "all",
-            "variable": "allxp",
-        },
-        {
-            "sidra_tabela": "95",
-            "territorial_level": "6",
-            "ibge_territorial_code": "all",
-            "variable": "allxp",
-        },
-    ]
+    tabelas = []
+    sidra_tabelas_grandes = ("73", "3939")
+    for tabela_grande in sidra_tabelas_grandes:
+        metadados = sidra.get_metadados(tabela_grande)
+        _tabelas = [
+            {
+                "sidra_tabela": tabela_grande,
+                "territorial_level": "6",
+                "ibge_territorial_code": "all",
+                "variable": "allxp",
+                "classifications": classificacoes,
+            }
+            for classificacoes in sidra.unnest_classificacoes(metadados["classificacoes"], {})
+        ]
+        tabelas.extend(_tabelas)
     return tabelas
 
 
@@ -75,11 +62,12 @@ def create_table(engine: sa.Engine, config: Config):
         columns={
             "ano": "SMALLINT NOT NULL",
             "id_municipio": "TEXT NOT NULL",
+            "tipo_rebanho": "TEXT NOT NULL",
             "variavel": "TEXT NOT NULL",
             "unidade": "TEXT NOT NULL",
             "valor": "DOUBLE PRECISION",
         },
-        primary_keys=("ano", "id_municipio", "variavel"),
+        primary_keys=("ano", "id_municipio", "tipo_rebanho", "variavel"),
     )
     dcl = database.build_dcl(
         schema=config.db_schema,
@@ -100,17 +88,10 @@ def refine(df: pd.DataFrame) -> pd.DataFrame:
         "Município (Código)": "id_municipio",
         "Ano": "ano",
         "Variável": "variavel",
+        "Tipo de rebanho": "tipo_rebanho",
     }
     df = df[list(columns_rename.keys())]
     df = df.rename(columns=columns_rename)
-    df = df.assign(
-        valor=lambda x: x["valor"].astype(int),
-        variavel=lambda x: x["variavel"].replace(
-            {
-                "Ovinos tosquiados nos estabelecimentos agropecuários": "Ovinos tosquiados",
-            }
-        ),
-    )
     return df
 
 
@@ -118,7 +99,7 @@ def main():
     tabelas = get_tabelas()
     data_files = download(tabelas=tabelas)
 
-    db_table = "ppm_exploracao"
+    db_table = "ppm_rebanhos"
     config = Config(db_table=db_table)
     engine = database.get_engine(config)
     create_table(engine, config)
