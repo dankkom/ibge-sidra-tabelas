@@ -2,7 +2,7 @@
 name = "ibge-tabelas"
 version = "0.1.0"
 description = "Tabelas de dados agregados do IBGE"
-authors = ["Data Engineer <danielkomesu@pezco.com.br>"]
+authors = ["Daniel Komesu <danielkomesu@gmail.com>"]
 
 [tool.poetry.dependencies]
 python = ">=3.10"
