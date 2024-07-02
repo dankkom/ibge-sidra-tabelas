@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "ibge-tabelas"
+name = "ibge-sidra-tabelas"
 version = "0.1.0"
 description = "Tabelas de dados agregados do IBGE"
 authors = ["Daniel Komesu <danielkomesu@gmail.com>"]

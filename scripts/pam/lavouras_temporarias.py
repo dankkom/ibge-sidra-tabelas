@@ -131,8 +131,8 @@ from pathlib import Path
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
-from ibge_tabelas import database, sidra, storage
-from ibge_tabelas.config import Config
+from ibge_sidra_tabelas import database, sidra, storage
+from ibge_sidra_tabelas.config import Config
 
 
 def get_tabelas():
