@@ -66,7 +66,7 @@ def download_table(
         dest_filepath.parent.mkdir(exist_ok=True, parents=True)
         if dest_filepath.exists():
             filepaths.append(dest_filepath)
-            logger.warn("File already exists: %s", dest_filepath)
+            logger.warning("File already exists: %s", dest_filepath)
             continue
         logger.info("Downloading %s", filename)
         df = sidrapy.get_table(
