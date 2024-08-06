@@ -22,6 +22,7 @@ def get_filename(
     ibge_territorial_code: str,
     variable: str = "allxp",
     classifications: dict[str, str] = None,
+    data_modificacao: str = None,
 ):
     name = f"t-{sidra_tabela}_p-{periodo}"
     name += f"_n{territorial_level}-{ibge_territorial_code}"
@@ -29,6 +30,7 @@ def get_filename(
     if classifications is not None:
         for classificacao, categoria in classifications.items():
             name += f"_c{classificacao}-{categoria}"
+    name += f"@{data_modificacao}" if data_modificacao is not None else ""
     name += ".csv"
     return name
 

@@ -61,6 +61,7 @@ def download_table(
             ibge_territorial_code=ibge_territorial_code,
             variable=variable,
             classifications=classifications,
+            data_modificacao=periodo["id"],
         )
         dest_filepath = get_data_dir() / f"t-{sidra_tabela}" / filename
         dest_filepath.parent.mkdir(exist_ok=True, parents=True)
