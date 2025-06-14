@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from sidra_fetcher.api.sidra import Parametro
 
 from .config import DATA_DIR
 
@@ -15,22 +16,28 @@ def get_data_dir() -> Path:
     return data_dir
 
 
-def get_filename(
-    sidra_tabela: str,
-    periodo: str,
-    territorial_level: str,
-    ibge_territorial_code: str,
-    variable: str = "allxp",
-    classifications: dict[str, str] = None,
-    data_modificacao: str = None,
-):
-    name = f"t-{sidra_tabela}_p-{periodo}"
-    name += f"_n{territorial_level}-{ibge_territorial_code}"
-    name += f"_v-{variable}"
-    if classifications is not None:
-        for classificacao, categoria in classifications.items():
-            name += f"_c{classificacao}-{categoria}"
-    name += f"@{data_modificacao}" if data_modificacao is not None else ""
+def get_filename(parameter: Parametro, modification: str):
+    """Generate a filename for the given parameter.
+    Args:
+        parameter (Parametro): The parameter containing the table and territorial information.
+        modification (str | None): Optional modification string to append to the filename.
+    Returns:
+        str: The generated filename.
+    """
+    sidra_table = parameter.agregado
+    periods = ",".join(parameter.periodos)
+    name = f"t-{sidra_table}_p-{periods}"
+    for territorial_level in parameter.territorios:
+        territorial_codes = ",".join(
+            str(code) for code in parameter.territorios[territorial_level]
+        )
+        name += f"_n{territorial_level}-{territorial_codes}"
+    for variable in parameter.variaveis:
+        name += f"_v-{variable}"
+    for classification, categories in parameter.classificacoes.items():
+        str_categories = ",".join(categories)
+        name += f"_c{classification}-{str_categories}"
+    name += f"@{modification}"
     name += ".csv"
     return name
 
