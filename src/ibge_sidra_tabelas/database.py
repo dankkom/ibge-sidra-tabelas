@@ -16,9 +16,7 @@ def get_engine(config: Config) -> sa.engine.Engine:
     db_host = config.db_host
     db_port = config.db_port
     db_name = config.db_name
-    connection_string = (
-        f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
-    )
+    connection_string = f"postgresql+psycopg://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
     engine = sa.create_engine(connection_string)
     return engine
 
@@ -34,8 +32,11 @@ def load(df: pd.DataFrame, engine: sa.engine.Engine, config: Config):
             index=False,
             chunksize=1_000,
         )
-    except sqlalchemy.exc.IntegrityError as e:
-        logger.warning("Integrity error> failed loading data into %s table", config.db_table)
+    except sqlalchemy.exc.IntegrityError:
+        logger.warning(
+            "Integrity error: failed to load data into %s table",
+            config.db_table,
+        )
 
 
 def build_ddl(
@@ -44,7 +45,7 @@ def build_ddl(
     tablespace: str,
     columns: dict[str, str],
     primary_keys: Iterable[str],
-    comment: str = None,
+    comment: str = "",
 ) -> str:
     table_definition = ", ".join([f"{column_name} {column_type}" for column_name, column_type in columns.items()])
     primary_keys_definition = ", ".join(primary_keys)
