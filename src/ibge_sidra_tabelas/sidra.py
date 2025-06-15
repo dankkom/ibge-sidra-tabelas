@@ -2,101 +2,118 @@ import logging
 from pathlib import Path
 from typing import Generator
 
-import requests
-import sidrapy
+import pandas as pd
+from sidra_fetcher.api.agregados import Classificacao
+from sidra_fetcher.api.sidra import Parametro
+from sidra_fetcher.fetcher import SidraClient
 
-from .storage import get_filename, get_data_dir, write_file
+from .storage import get_data_dir, get_filename, write_file
 
-BASE_URL = "https://servicodados.ibge.gov.br/api/v3/agregados/"
 logger = logging.getLogger(__name__)
 
 
-def get_periodos(agregado: str):
-    url = BASE_URL + "{agregado}/periodos".format(agregado=agregado)
-    response = requests.get(url)
-    return response.json()
+class Fetcher:
+    def __init__(self):
+        self.sidra_client = SidraClient(timeout=600)
+        self.data_dir = get_data_dir()
 
+    def download_table(
+        self,
+        sidra_tabela: str,
+        territories: dict[str, list[str]],
+        variables: list[str] | None = None,
+        classifications: dict[str, list[str]] | None = None,
+    ) -> list[Path]:
+        """Download a SIDRA table in CSV format on temp_dir()
 
-def get_localidades(agregado: str, nivel: str) -> list[dict[str, str]]:
-    url = BASE_URL + "{agregado}/localidades/{nivel}".format(
-        agregado=agregado,
-        nivel=nivel,
-    )
-    response = requests.get(url)
-    return response.json()
+        Args:
+            sidra_tabela (str): SIDRA table code
+            territories (dict[str, list[str]]): dictionary with territory codes.
+                The keys are the territory codes and the values are lists of
+                territory IDs. For example, {"6": ["1234567", "6789012"]} for
+                the state of São Paulo with two municipalities.
+            variables (list[str], optional): list of variables to download.
+            classifications (dict, optional): classifications and categories codes.
 
+        Returns:
+            list[Path]: list of downloaded files
+        """
 
-def get_metadados(agregado: str) -> dict[str, str]:
-    url = BASE_URL + "{agregado}/metadados".format(agregado=agregado)
-    response = requests.get(url)
-    return response.json()
+        if variables is None:
+            variables = ["all"]
 
+        if classifications is None:
+            metadados = self.sidra_client.get_agregado_metadados(
+                int(sidra_tabela)
+            )
+            classifications = {
+                str(classificacao.id): []
+                for classificacao in metadados.classificacoes
+            }
 
-def download_table(
-    sidra_tabela: str,
-    territorial_level: str,
-    ibge_territorial_code: str,
-    variable: str = "allxp",
-    classifications: dict = None,
-) -> list[Path]:
-    """Download a SIDRA table in CSV format on temp_dir()
-
-    Args:
-        sidra_tabela (str): SIDRA table code
-        territorial_level (str): territorial level code
-        ibge_territorial_code (str): IBGE territorial code
-        variable (str, optional): variable code. Defaults to None.
-        classifications (dict, optional): classifications and categories codes. Defaults to None.
-
-    Returns:
-        list[Path]: list of downloaded files
-    """
-    filepaths = []
-    periodos = get_periodos(sidra_tabela)
-    for periodo in periodos:
-        filename = get_filename(
-            sidra_tabela=sidra_tabela,
-            periodo=periodo["id"],
-            territorial_level=territorial_level,
-            ibge_territorial_code=ibge_territorial_code,
-            variable=variable,
-            classifications=classifications,
-            data_modificacao=periodo["id"],
+        filepaths: list[Path] = []
+        periodos = self.sidra_client.get_agregado_periodos(
+            agregado_id=int(sidra_tabela)
         )
-        dest_filepath = get_data_dir() / f"t-{sidra_tabela}" / filename
-        dest_filepath.parent.mkdir(exist_ok=True, parents=True)
-        if dest_filepath.exists():
+        for periodo in periodos:
+            parameter = Parametro(
+                agregado=sidra_tabela,
+                territorios=territories,
+                variaveis=variables,
+                periodos=[periodo.id],
+                classificacoes=classifications,
+            )
+            filename = get_filename(
+                parameter=parameter,
+                modification=periodo.modificacao.isoformat(),
+            )
+            dest_filepath = self.data_dir / f"t-{sidra_tabela}" / filename
+            dest_filepath.parent.mkdir(exist_ok=True, parents=True)
+            if dest_filepath.exists():
+                filepaths.append(dest_filepath)
+                logger.warning("File already exists: %s", dest_filepath)
+                continue
+            logger.info("Downloading %s", filename)
+            df = self.get_table(parameter)
+            write_file(df=df, dest_filepath=dest_filepath)
             filepaths.append(dest_filepath)
-            logger.warning("File already exists: %s", dest_filepath)
-            continue
-        logger.info("Downloading %s", filename)
-        df = sidrapy.get_table(
-            table_code=sidra_tabela,  # Tabela SIDRA
-            territorial_level=territorial_level,  # Nível de Municípios
-            ibge_territorial_code=ibge_territorial_code,  # Territórios
-            period=periodo["id"],  # Período
-            variable=variable,  # Variáveis
-            classifications=classifications,
-        )
-        write_file(df=df, dest_filepath=dest_filepath)
-        filepaths.append(dest_filepath)
-    return filepaths
+        return filepaths
+
+    def get_table(self, parameter: Parametro) -> pd.DataFrame:
+        """Get a table from SIDRA API
+
+        Args:
+            parameter (Parametro): Parameter object with the request parameters
+
+        Returns:
+            pd.DataFrame: DataFrame with the table data
+        """
+        url = parameter.url()
+        data = self.sidra_client.get(url)
+        df = pd.DataFrame(data)
+        return df
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.sidra_client.__exit__(exc_type, exc_value, traceback)
 
 
 def unnest_classificacoes(
-    classificacoes: list[dict],
-    data: dict[str, str] = None,
-) -> Generator[dict[str, str], None, None]:
+    classificacoes: list[Classificacao],
+    data: dict[str, list[str]] | None = None,
+) -> Generator[dict[str, list[str]], None, None]:
     """Recursively list all classifications and categories"""
     if data is None:
-        data = {}
+        data: dict[str, list[str]] = {}
     for i, classificacao in enumerate(classificacoes, 1):
-        classificacao_id = classificacao["id"]
-        for categoria in classificacao["categorias"]:
-            categoria_id = str(categoria["id"])
+        classificacao_id = str(classificacao.id)
+        for categoria in classificacao.categorias:
+            categoria_id = str(categoria.id)
             if categoria_id == "0":
                 continue
-            data[f"{classificacao_id}"] = categoria_id
+            data[classificacao_id] = [categoria_id]
             if len(classificacoes) == 1:
                 yield dict(**data)
             else:
