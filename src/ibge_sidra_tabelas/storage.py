@@ -31,6 +31,8 @@ def get_filename(parameter: Parametro, modification: str):
         territorial_codes = ",".join(
             str(code) for code in parameter.territorios[territorial_level]
         )
+        if territorial_codes == "":
+            territorial_codes = "all"
         name += f"_n{territorial_level}-{territorial_codes}"
     for variable in parameter.variaveis:
         name += f"_v-{variable}"
