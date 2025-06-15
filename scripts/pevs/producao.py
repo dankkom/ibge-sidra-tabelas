@@ -62,9 +62,8 @@ def get_tabelas(fetcher: sidra.Fetcher) -> Iterable[dict[str, Any]]:
     tabelas_289 = tuple(
         {
             "sidra_tabela": "289",
-            "territorial_level": "6",
-            "ibge_territorial_code": "all",
-            "variable": "allxp",
+            "territories": {"6": []},
+            "variables": ["allxp"],
             "classifications": classificacoes,  # Tipo de produto extrativo
         }
         for classificacoes in sidra.unnest_classificacoes(
@@ -75,9 +74,8 @@ def get_tabelas(fetcher: sidra.Fetcher) -> Iterable[dict[str, Any]]:
     tabelas_291 = tuple(
         {
             "sidra_tabela": "291",
-            "territorial_level": "6",
-            "ibge_territorial_code": "all",
-            "variable": "allxp",
+            "territories": {"6": []},
+            "variables": ["allxp"],
             "classifications": classificacoes,  # Tipo de produto da silvicultura
         }
         for classificacoes in sidra.unnest_classificacoes(
