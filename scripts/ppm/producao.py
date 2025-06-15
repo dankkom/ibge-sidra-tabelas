@@ -24,32 +24,35 @@ from ibge_sidra_tabelas import database, sidra, storage
 from ibge_sidra_tabelas.config import Config
 
 
-def get_tabelas() -> list[dict[str, str]]:
+def get_tabelas(fetcher: sidra.Fetcher) -> list[dict[str, str]]:
     tabelas = []
     sidra_tabelas_grandes = (
         "74",
         "3940",
     )
     for tabela_grande in sidra_tabelas_grandes:
-        metadados = sidra.get_metadados(tabela_grande)
+        metadados = fetcher.sidra_client.get_agregado_metadados(tabela_grande)
         _tabelas = [
             {
                 "sidra_tabela": tabela_grande,
-                "territorial_level": "6",
-                "ibge_territorial_code": "all",
-                "variable": "allxp",
+                "territories": {"6": []},
+                "variables": ["allxp"],
                 "classifications": classificacoes,
             }
-            for classificacoes in sidra.unnest_classificacoes(metadados["classificacoes"], {})
+            for classificacoes in sidra.unnest_classificacoes(
+                metadados.classificacoes
+            )
         ]
         tabelas.extend(_tabelas)
     return tabelas
 
 
-def download(tabelas: list[dict[str, str]]) -> list[dict[str, Any]]:
+def download(
+    fetcher: sidra.Fetcher, tabelas: list[dict[str, str]]
+) -> list[dict[str, Any]]:
     data_files = []
     for tabela in tabelas:
-        _filepaths = sidra.download_table(**tabela)
+        _filepaths = fetcher.download_table(**tabela)
         for filepath in _filepaths:
             data_files.append(tabela | {"filepath": filepath})
     return data_files
@@ -109,8 +112,9 @@ def refine(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def main():
-    tabelas = get_tabelas()
-    data_files = download(tabelas=tabelas)
+    with sidra.Fetcher() as fetcher:
+        tabelas = get_tabelas(fetcher=fetcher)
+        data_files = download(fetcher=fetcher, tabelas=tabelas)
 
     db_table = "ppm_producao"
     config = Config(db_table=db_table)

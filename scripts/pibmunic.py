@@ -90,12 +90,12 @@ def create_table(engine: sa.engine.Engine, config: Config):
 def main():
     sidra_tabela = "5938"
 
-    filepaths = sidra.download_table(
-        sidra_tabela=sidra_tabela,
-        territorial_level="6",
-        ibge_territorial_code="all",
-        variable="37,498,513,517,525,543,6575",
-    )
+    with sidra.Fetcher() as fetcher:
+        filepaths = fetcher.download_table(
+            sidra_tabela=sidra_tabela,
+            territories={"6": ["all"]},
+            variables=["37", "498", "513", "517", "525", "543", "6575"],
+        )
 
     db_table = "pibmunic"
     config = Config(db_table)
@@ -104,7 +104,7 @@ def main():
     for filepath in filepaths:
         df = storage.read_file(
             filepath,
-            columns=(
+            usecols=(
                 "Ano",
                 "Município (Código)",
                 "Variável",

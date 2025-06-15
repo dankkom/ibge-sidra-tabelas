@@ -63,25 +63,30 @@ from ibge_sidra_tabelas import database, sidra, storage
 from ibge_sidra_tabelas.config import Config
 
 
-def get_tabelas():
-    metadados = sidra.get_metadados("1613")
+def get_tabelas(
+    fetcher: sidra.Fetcher,
+) -> tuple[dict[str, str | list[str] | dict[str, list[str]]]]:
+    metadados = fetcher.sidra_client.get_agregado_metadados("1613")
     tabelas = tuple(
         {
             "sidra_tabela": "1613",
-            "territorial_level": "6",
-            "ibge_territorial_code": "all",
-            "variable": "allxp",
+            "territories": {"6": []},  # 6 = Brasil
+            "variables": ["allxp"],
             "classifications": classificacoes,  # Produto das lavouras permanentes
         }
-        for classificacoes in sidra.unnest_classificacoes(metadados["classificacoes"], {})
+        for classificacoes in sidra.unnest_classificacoes(
+            metadados.classificacoes
+        )
     )
     return tabelas
 
 
-def download(tabelas: list[dict[str, str]]) -> list[Path]:
+def download(
+    fetcher: sidra.Fetcher, tabelas: list[dict[str, str]]
+) -> list[Path]:
     filepaths = []
     for tabela in tabelas:
-        _filepaths = sidra.download_table(**tabela)
+        _filepaths = fetcher.download_table(**tabela)
         filepaths.extend(_filepaths)
     return filepaths
 
@@ -129,8 +134,9 @@ def refine(df):
 
 
 def main():
-    tabelas = get_tabelas()
-    filepaths = download(tabelas=tabelas)
+    with sidra.Fetcher() as fetcher:
+        tabelas = get_tabelas(fetcher=fetcher)
+        filepaths = download(fetcher=fetcher, tabelas=tabelas)
 
     db_table = "pam_lavouras_permanentes"
     config = Config(db_table)

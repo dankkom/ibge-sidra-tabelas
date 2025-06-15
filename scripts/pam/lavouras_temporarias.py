@@ -135,58 +135,65 @@ from ibge_sidra_tabelas import database, sidra, storage
 from ibge_sidra_tabelas.config import Config
 
 
-def get_tabelas():
+def get_tabelas(fetcher: sidra.Fetcher):
     tabelas = (
         {
             "sidra_tabela": "839",
-            "territorial_level": "6",
-            "ibge_territorial_code": "all",
-            "variable": "allxp",
-            "classifications": {"81": "allxt"},  # Produto das lavouras temporárias
+            "territories": {"6": []},
+            "variables": ["allxp"],
+            "classifications": {
+                "81": "allxt"
+            },  # Produto das lavouras temporárias
         },
         {
             "sidra_tabela": "1000",
-            "territorial_level": "6",
-            "ibge_territorial_code": "all",
-            "variable": "allxp",
-            "classifications": {"81": "allxt"},  # Produto das lavouras temporárias
+            "territories": {"6": []},
+            "variables": ["allxp"],
+            "classifications": {
+                "81": "allxt"
+            },  # Produto das lavouras temporárias
         },
         {
             "sidra_tabela": "1001",
-            "territorial_level": "6",
-            "ibge_territorial_code": "all",
-            "variable": "allxp",
-            "classifications": {"81": "allxt"},  # Produto das lavouras temporárias
+            "territories": {"6": []},
+            "variables": ["allxp"],
+            "classifications": {
+                "81": "allxt"
+            },  # Produto das lavouras temporárias
         },
     )
     tabelas_1002 = tuple(
         {
             "sidra_tabela": "1002",
-            "territorial_level": "6",
-            "ibge_territorial_code": "all",
-            "variable": variable,
-            "classifications": {"81": "allxt"},  # Produto das lavouras temporárias
+            "territories": {"6": []},
+            "variables": [variable],
+            "classifications": {
+                "81": "allxt"
+            },  # Produto das lavouras temporárias
         }
         for variable in ("109", "216", "214", "112")
     )
-    metadados_1612 = sidra.get_metadados("1612")
+    metadados_1612 = fetcher.sidra_client.get_agregado_metadados("1612")
     tabelas_1612 = tuple(
         {
             "sidra_tabela": "1612",
-            "territorial_level": "6",
-            "ibge_territorial_code": "all",
-            "variable": "allxp",
+            "territories": {"6": []},
+            "variables": ["allxp"],
             "classifications": classificacoes,  # Produto das lavouras temporárias
         }
-        for classificacoes in sidra.unnest_classificacoes(metadados_1612["classificacoes"], {})
+        for classificacoes in sidra.unnest_classificacoes(
+            metadados_1612.classificacoes
+        )
     )
     return tabelas + tabelas_1002 + tabelas_1612
 
 
-def download(tabelas: list[dict[str, str]]) -> list[Path]:
+def download(
+    fetcher: sidra.Fetcher, tabelas: list[dict[str, str]]
+) -> list[Path]:
     filepaths = []
     for tabela in tabelas:
-        _filepaths = sidra.download_table(**tabela)
+        _filepaths = fetcher.download_table(**tabela)
         filepaths.extend(_filepaths)
     return filepaths
 
@@ -234,8 +241,9 @@ def refine(df):
 
 
 def main():
-    tabelas = get_tabelas()
-    filepaths = download(tabelas=tabelas)
+    with sidra.Fetcher() as fetcher:
+        tabelas = get_tabelas(fetcher=fetcher)
+        filepaths = download(fetcher=fetcher, tabelas=tabelas)
 
     db_table = "pam_lavouras_temporarias"
     config = Config(db_table)

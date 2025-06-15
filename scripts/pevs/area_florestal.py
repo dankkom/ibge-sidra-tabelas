@@ -27,18 +27,19 @@ from ibge_sidra_tabelas.config import Config
 def get_tabelas() -> Iterable[dict[str, Any]]:
     tabela_5930 = {
         "sidra_tabela": "5930",
-        "territorial_level": "6",
-        "ibge_territorial_code": "all",
-        "variable": "allxp",
-        "classifications": {"734": "allxt"},  # Espécie florestal
+        "territories": {"6": []},  # 6 = Brasil
+        "variables": ["allxp"],
+        "classifications": {"734": ["allxt"]},  # Espécie florestal
     }
     return (tabela_5930,)
 
 
-def download(tabelas: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+def download(
+    fetcher: sidra.Fetcher, tabelas: Iterable[dict[str, Any]]
+) -> list[dict[str, Any]]:
     data_files = []
     for tabela in tabelas:
-        _filepaths = sidra.download_table(**tabela)
+        _filepaths = fetcher.download_table(**tabela)
         for filepath in _filepaths:
             data_files.append(tabela | {"filepath": filepath})
     return data_files
@@ -86,7 +87,8 @@ def refine(df: pd.DataFrame) -> pd.DataFrame:
 
 def main():
     tabelas = get_tabelas()
-    data_files = download(tabelas=tabelas)
+    with sidra.Fetcher() as fetcher:
+        data_files = download(fetcher=fetcher, tabelas=tabelas)
 
     db_table = "pevs_area_florestal"
     config = Config(db_table=db_table)

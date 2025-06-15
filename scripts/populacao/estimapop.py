@@ -544,11 +544,11 @@ def main():
     engine = database.get_engine(config)
     create_table(engine, config)
 
-    filepaths = sidra.download_table(
-        sidra_tabela=sidra_tabela,
-        territorial_level="6",
-        ibge_territorial_code="all",
-    )
+    with sidra.Fetcher() as fetcher:
+        filepaths = fetcher.download_table(
+            sidra_tabela=sidra_tabela,
+            territories={"6": []},
+        )
 
     for filepath in filepaths:
         df = storage.read_file(filepath, usecols=("Ano", "Município (Código)", "Valor"))

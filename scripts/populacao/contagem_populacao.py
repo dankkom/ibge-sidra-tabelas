@@ -203,13 +203,13 @@ def main():
     )
 
     filepaths = []
-    for sidra_tabela in sidra_tabelas:
-        _filepaths = sidra.download_table(
-            sidra_tabela=sidra_tabela,
-            territorial_level="6",
-            ibge_territorial_code="all",
-        )
-        filepaths.extend(_filepaths)
+    with sidra.Fetcher() as fetcher:
+        for sidra_tabela in sidra_tabelas:
+            _filepaths = fetcher.download_table(
+                sidra_tabela=sidra_tabela,
+                territories={"6": ["all"]},  # All municipalities in Brazil
+            )
+            filepaths.extend(_filepaths)
 
     db_table = "contagem_populacao"
     config = Config(db_table=db_table)

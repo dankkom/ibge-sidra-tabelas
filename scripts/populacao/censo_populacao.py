@@ -64,13 +64,13 @@ def main():
     engine = database.get_engine(config)
     create_table(engine, config)
 
-    filepaths = sidra.download_table(
-        sidra_tabela=sidra_tabela,
-        territorial_level="6",
-        ibge_territorial_code="all",
-        variable="allxp",
-        classifications={"2": "0", "1": "0", "58": "0"},
-    )
+    with sidra.Fetcher() as fetcher:
+        filepaths = fetcher.download_table(
+            sidra_tabela=sidra_tabela,
+            territories={"6": ["all"]},  # All municipalities in Brazil
+            variables=["allxp"],  # All variables
+            classifications={"2": ["0"], "1": ["0"], "58": ["0"]},
+        )
 
     for filepath in filepaths:
         df = storage.read_file(filepath, usecols=("Ano", "Município (Código)", "Valor"))

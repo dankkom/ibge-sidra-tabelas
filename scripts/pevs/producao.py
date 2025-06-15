@@ -57,8 +57,8 @@ from ibge_sidra_tabelas import database, sidra, storage
 from ibge_sidra_tabelas.config import Config
 
 
-def get_tabelas() -> Iterable[dict[str, Any]]:
-    metadados_289 = sidra.get_metadados("289")
+def get_tabelas(fetcher: sidra.Fetcher) -> Iterable[dict[str, Any]]:
+    metadados_289 = fetcher.sidra_client.get_agregado_metadados("289")
     tabelas_289 = tuple(
         {
             "sidra_tabela": "289",
@@ -67,9 +67,11 @@ def get_tabelas() -> Iterable[dict[str, Any]]:
             "variable": "allxp",
             "classifications": classificacoes,  # Tipo de produto extrativo
         }
-        for classificacoes in sidra.unnest_classificacoes(metadados_289["classificacoes"], {})
+        for classificacoes in sidra.unnest_classificacoes(
+            metadados_289.classificacoes
+        )
     )
-    metadados_291 = sidra.get_metadados("291")
+    metadados_291 = fetcher.sidra_client.get_agregado_metadados("291")
     tabelas_291 = tuple(
         {
             "sidra_tabela": "291",
@@ -78,15 +80,19 @@ def get_tabelas() -> Iterable[dict[str, Any]]:
             "variable": "allxp",
             "classifications": classificacoes,  # Tipo de produto da silvicultura
         }
-        for classificacoes in sidra.unnest_classificacoes(metadados_291["classificacoes"], {})
+        for classificacoes in sidra.unnest_classificacoes(
+            metadados_291.classificacoes
+        )
     )
     return tabelas_289 + tabelas_291
 
 
-def download(tabelas: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+def download(
+    fetcher: sidra.Fetcher, tabelas: Iterable[dict[str, Any]]
+) -> list[dict[str, Any]]:
     data_files = []
     for tabela in tabelas:
-        _filepaths = sidra.download_table(**tabela)
+        _filepaths = fetcher.download_table(**tabela)
         for filepath in _filepaths:
             data_files.append(tabela | {"filepath": filepath})
     return data_files
@@ -152,8 +158,9 @@ def refine(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def main():
-    tabelas = get_tabelas()
-    data_files = download(tabelas=tabelas)
+    with sidra.Fetcher() as fetcher:
+        tabelas = get_tabelas(fetcher=fetcher)
+        data_files = download(fetcher=fetcher, tabelas=tabelas)
 
     db_table = "pevs_producao"
     config = Config(db_table=db_table)

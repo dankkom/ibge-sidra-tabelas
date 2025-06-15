@@ -40,28 +40,28 @@ from ibge_sidra_tabelas import database, sidra, storage
 from ibge_sidra_tabelas.config import Config
 
 
-def get_tabelas() -> list[dict[str, str]]:
+def get_tabelas() -> list[dict[str, str | list[str] | dict[str, list[str]]]]:
     tabelas = [
         {
             "sidra_tabela": "94",
-            "territorial_level": "6",
-            "ibge_territorial_code": "all",
-            "variable": "allxp",
+            "territories": {"6": []},
+            "variables": ["allxp"],
         },
         {
             "sidra_tabela": "95",
-            "territorial_level": "6",
-            "ibge_territorial_code": "all",
-            "variable": "allxp",
+            "territories": {"6": []},
+            "variables": ["allxp"],
         },
     ]
     return tabelas
 
 
-def download(tabelas: list[dict[str, str]]) -> list[dict[str, Any]]:
+def download(
+    fetcher: sidra.Fetcher, tabelas: list[dict[str, str]]
+) -> list[dict[str, Any]]:
     data_files = []
     for tabela in tabelas:
-        _filepaths = sidra.download_table(**tabela)
+        _filepaths = fetcher.download_table(**tabela)
         for filepath in _filepaths:
             data_files.append(tabela | {"filepath": filepath})
     return data_files
@@ -116,7 +116,9 @@ def refine(df: pd.DataFrame) -> pd.DataFrame:
 
 def main():
     tabelas = get_tabelas()
-    data_files = download(tabelas=tabelas)
+    with sidra.Fetcher() as fetcher:
+        # Download data files
+        data_files = download(fetcher=fetcher, tabelas=tabelas)
 
     db_table = "ppm_exploracao"
     config = Config(db_table=db_table)
