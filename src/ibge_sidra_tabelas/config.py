@@ -8,7 +8,7 @@ DATA_DIR = Path(os.getenv("DATA_DIR", "data"))
 
 
 class Config:
-    def __init__(self, db_table):
+    def __init__(self, db_table: str):
         self.config = configparser.ConfigParser()
         self.config.read(Path("config.ini"))
 
