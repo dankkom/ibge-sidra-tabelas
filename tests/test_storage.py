@@ -13,6 +13,7 @@ class TestStorage(unittest.TestCase):
             variaveis=["allxp"],
             classificacoes={"": []},
             periodos=["202001", "202002"],
+            decimais="/d/m",
         )
         modification = "2005-01-05"
         filename = get_filename(parameter, modification)

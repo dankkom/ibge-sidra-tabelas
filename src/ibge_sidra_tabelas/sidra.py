@@ -62,6 +62,7 @@ class Fetcher:
                 variaveis=variables,
                 periodos=[periodo.id],
                 classificacoes=classifications,
+                decimais="/d/m",
             )
             filename = get_filename(
                 parameter=parameter,
