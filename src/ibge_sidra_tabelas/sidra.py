@@ -1,7 +1,9 @@
 import logging
+import time
 from pathlib import Path
 from typing import Generator
 
+import httpx
 import pandas as pd
 from sidra_fetcher.api.agregados import Classificacao
 from sidra_fetcher.api.sidra import Parametro
@@ -90,9 +92,19 @@ class Fetcher:
             pd.DataFrame: DataFrame with the table data
         """
         url = parameter.url()
-        data = self.sidra_client.get(url)
-        df = pd.DataFrame(data)
-        return df
+        while True:
+            try:
+                data = self.sidra_client.get(url)
+                df = pd.DataFrame(data)
+                return df
+            except httpx.ReadTimeout as e:
+                logger.error("Read timeout while fetching data: %s", e)
+                logger.info("Retrying in 5 seconds...")
+                time.sleep(5)
+            except httpx.RemoteProtocolError as e:
+                logger.error("Remote protocol error: %s", e)
+                logger.info("Retrying in 5 seconds...")
+                time.sleep(5)
 
     def __enter__(self):
         return self
