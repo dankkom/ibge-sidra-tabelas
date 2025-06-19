@@ -142,7 +142,7 @@ def get_tabelas(fetcher: sidra.Fetcher):
             "territories": {"6": []},
             "variables": ["allxp"],
             "classifications": {
-                "81": "allxt"
+                "81": ["allxt"]
             },  # Produto das lavouras temporárias
         },
         {
@@ -150,7 +150,7 @@ def get_tabelas(fetcher: sidra.Fetcher):
             "territories": {"6": []},
             "variables": ["allxp"],
             "classifications": {
-                "81": "allxt"
+                "81": ["allxt"]
             },  # Produto das lavouras temporárias
         },
         {
@@ -158,7 +158,7 @@ def get_tabelas(fetcher: sidra.Fetcher):
             "territories": {"6": []},
             "variables": ["allxp"],
             "classifications": {
-                "81": "allxt"
+                "81": ["allxt"]
             },  # Produto das lavouras temporárias
         },
     )
@@ -168,7 +168,7 @@ def get_tabelas(fetcher: sidra.Fetcher):
             "territories": {"6": []},
             "variables": [variable],
             "classifications": {
-                "81": "allxt"
+                "81": ["allxt"]
             },  # Produto das lavouras temporárias
         }
         for variable in ("109", "216", "214", "112")
