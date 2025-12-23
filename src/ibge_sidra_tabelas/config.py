@@ -17,7 +17,7 @@ class Config:
         self.db_host = self.config["database"]["host"]
         self.db_port = self.config["database"]["port"]
 
-        self.db_name = self.config["database"]["name"]
+        self.db_name = self.config["database"]["dbname"]
         self.db_schema = self.config["database"]["schema"]
         self.db_table = db_table
         self.db_tablespace = self.config["database"]["tablespace"]
