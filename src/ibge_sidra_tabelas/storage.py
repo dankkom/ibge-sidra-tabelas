@@ -26,7 +26,8 @@ def get_filename(parameter: Parametro, modification: str):
     """
     sidra_table = parameter.agregado
     periods = ",".join(parameter.periodos)
-    name = f"t-{sidra_table}_p-{periods}"
+    formato = parameter.formato.value
+    name = f"t-{sidra_table}_p-{periods}_f-{formato}"
     for territorial_level in parameter.territorios:
         territorial_codes = ",".join(
             str(code) for code in parameter.territorios[territorial_level]
