@@ -53,123 +53,101 @@ import pandas as pd
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
-from ibge_sidra_tabelas import database, sidra, storage
+from ibge_sidra_tabelas import database, sidra
+from ibge_sidra_tabelas.base import BaseScript
 from ibge_sidra_tabelas.config import Config
 
 
-def get_tabelas(fetcher: sidra.Fetcher) -> Iterable[dict[str, Any]]:
-    metadados_289 = fetcher.sidra_client.get_agregado_metadados("289")
-    tabelas_289 = tuple(
-        {
-            "sidra_tabela": "289",
-            "territories": {"6": []},
-            "variables": ["allxp"],
-            "classifications": classificacoes,  # Tipo de produto extrativo
-        }
-        for classificacoes in sidra.unnest_classificacoes(
-            metadados_289.classificacoes
-        )
-    )
-    metadados_291 = fetcher.sidra_client.get_agregado_metadados("291")
-    tabelas_291 = tuple(
-        {
-            "sidra_tabela": "291",
-            "territories": {"6": []},
-            "variables": ["allxp"],
-            "classifications": classificacoes,  # Tipo de produto da silvicultura
-        }
-        for classificacoes in sidra.unnest_classificacoes(
-            metadados_291.classificacoes
-        )
-    )
-    return tabelas_289 + tabelas_291
-
-
-def download(
-    fetcher: sidra.Fetcher, tabelas: Iterable[dict[str, Any]]
-) -> list[dict[str, Any]]:
-    data_files = []
-    for tabela in tabelas:
-        _filepaths = fetcher.download_table(**tabela)
-        for filepath in _filepaths:
-            data_files.append(tabela | {"filepath": filepath})
-    return data_files
-
-
-def create_table(engine: sa.Engine, config: Config):
-    ddl = database.build_ddl(
-        schema=config.db_schema,
-        table_name=config.db_table,
-        tablespace=config.db_tablespace,
-        columns={
-            "ano": "SMALLINT NOT NULL",
-            "id_municipio": "TEXT NOT NULL",
-            "grupo_produto": "TEXT NOT NULL",
-            "produto": "TEXT NOT NULL",
-            "variavel": "TEXT NOT NULL",
-            "unidade": "TEXT NOT NULL",
-            "valor": "DOUBLE PRECISION",
-        },
-        primary_keys=("ano", "id_municipio", "produto", "variavel"),
-    )
-    dcl = database.build_dcl(
-        schema=config.db_schema,
-        table_name=config.db_table,
-        table_owner=config.db_user,
-        table_user=config.db_readonly_role,
-    )
-    with Session(engine) as session:
-        session.execute(sa.text(ddl))
-        session.execute(sa.text(dcl))
-        session.commit()
-
-
-def refine(df: pd.DataFrame) -> pd.DataFrame:
-    columns_rename = {
-        "Ano (Código)": "ano",
-        "Município (Código)": "id_municipio",
-        "Variável": "variavel",
-        "Unidade de Medida": "unidade",
-        "Valor": "valor",
-    }
-    if "Tipo de produto extrativo" in df.columns:
-        columns_rename |= {"Tipo de produto extrativo": "produto"}
-        grupo_produto = "Extração vegetal"
-    elif "Tipo de produto da silvicultura" in df.columns:
-        columns_rename |= {"Tipo de produto da silvicultura": "produto"}
-        grupo_produto = "Silvicultura"
-    df = df[list(columns_rename.keys())]
-    df = df.rename(columns=columns_rename)
-    df = df.assign(
-        variavel=lambda x: x["variavel"].replace(
+class ProducaoScript(BaseScript):
+    def get_tabelas(self) -> Iterable[dict[str, Any]]:
+        metadados_289 = self.fetcher.sidra_client.get_agregado_metadados("289")
+        tabelas_289 = tuple(
             {
-                "Quantidade produzida na extração vegetal": "Quantidade produzida",
-                "Valor da produção na extração vegetal": "Valor da produção",
-                "Quantidade produzida na silvicultura": "Quantidade produzida",
-                "Valor da produção na silvicultura": "Valor da produção",
+                "sidra_tabela": "289",
+                "territories": {"6": []},
+                "variables": ["allxp"],
+                "classifications": classificacoes,  # Tipo de produto extrativo
             }
-        ),
-        grupo_produto=grupo_produto,
-    )
-    df = df.astype({"ano": int, "id_municipio": str})
-    return df
+            for classificacoes in sidra.unnest_classificacoes(
+                metadados_289.classificacoes
+            )
+        )
+        metadados_291 = self.fetcher.sidra_client.get_agregado_metadados("291")
+        tabelas_291 = tuple(
+            {
+                "sidra_tabela": "291",
+                "territories": {"6": []},
+                "variables": ["allxp"],
+                "classifications": classificacoes,  # Tipo de produto da silvicultura
+            }
+            for classificacoes in sidra.unnest_classificacoes(
+                metadados_291.classificacoes
+            )
+        )
+        return tabelas_289 + tabelas_291
+
+    def create_table(self, engine: sa.Engine):
+        ddl = database.build_ddl(
+            schema=self.config.db_schema,
+            table_name=self.config.db_table,
+            tablespace=self.config.db_tablespace,
+            columns={
+                "ano": "SMALLINT NOT NULL",
+                "id_municipio": "TEXT NOT NULL",
+                "grupo_produto": "TEXT NOT NULL",
+                "produto": "TEXT NOT NULL",
+                "variavel": "TEXT NOT NULL",
+                "unidade": "TEXT NOT NULL",
+                "valor": "DOUBLE PRECISION",
+            },
+            primary_keys=("ano", "id_municipio", "produto", "variavel"),
+        )
+        dcl = database.build_dcl(
+            schema=self.config.db_schema,
+            table_name=self.config.db_table,
+            table_owner=self.config.db_user,
+            table_user=self.config.db_readonly_role,
+        )
+        with Session(engine) as session:
+            session.execute(sa.text(ddl))
+            session.execute(sa.text(dcl))
+            session.commit()
+
+    def refine(self, df: pd.DataFrame) -> pd.DataFrame:
+        columns_rename = {
+            "Ano (Código)": "ano",
+            "Município (Código)": "id_municipio",
+            "Variável": "variavel",
+            "Unidade de Medida": "unidade",
+            "Valor": "valor",
+        }
+        if "Tipo de produto extrativo" in df.columns:
+            columns_rename |= {"Tipo de produto extrativo": "produto"}
+            grupo_produto = "Extração vegetal"
+        elif "Tipo de produto da silvicultura" in df.columns:
+            columns_rename |= {"Tipo de produto da silvicultura": "produto"}
+            grupo_produto = "Silvicultura"
+        df = df[list(columns_rename.keys())]
+        df = df.rename(columns=columns_rename)
+        df = df.assign(
+            variavel=lambda x: x["variavel"].replace(
+                {
+                    "Quantidade produzida na extração vegetal": "Quantidade produzida",
+                    "Valor da produção na extração vegetal": "Valor da produção",
+                    "Quantidade produzida na silvicultura": "Quantidade produzida",
+                    "Valor da produção na silvicultura": "Valor da produção",
+                }
+            ),
+            grupo_produto=grupo_produto,
+        )
+        df = df.astype({"ano": int, "id_municipio": str})
+        return df
 
 
 def main():
-    with sidra.Fetcher() as fetcher:
-        tabelas = get_tabelas(fetcher=fetcher)
-        data_files = download(fetcher=fetcher, tabelas=tabelas)
-
-    db_table = "pevs_producao"
-    config = Config(db_table=db_table)
-    engine = database.get_engine(config)
-    create_table(engine, config)
-
-    for data_file in data_files:
-        filepath = data_file["filepath"]
-        df = storage.read_file(filepath)
-        df = refine(df)
-        database.load(df, engine=engine, config=config)
+    config = Config(db_table="pevs_producao")
+    script = ProducaoScript(config)
+    script.run()
 
 
 if __name__ == "__main__":

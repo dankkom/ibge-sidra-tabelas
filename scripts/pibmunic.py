@@ -33,89 +33,82 @@ Fonte: IBGE, em parceria com os Órgãos Estaduais de Estatística, Secretarias
 
 """
 
+from typing import Any, Iterable
+
 import pandas as pd
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
-from ibge_sidra_tabelas import database, sidra, storage
+from ibge_sidra_tabelas import database
+from ibge_sidra_tabelas.base import BaseScript
 from ibge_sidra_tabelas.config import Config
 
 
-def refine(df: pd.DataFrame) -> pd.DataFrame:
-    columns = ["Ano", "Município (Código)", "Variável", "Unidade de Medida", "Valor"]
-    df = (
-        df.dropna(subset="Valor")[columns]
-        .rename(
+class PibMunicScript(BaseScript):
+    def get_tabelas(self) -> Iterable[dict[str, Any]]:
+        return [
+            {
+                "sidra_tabela": "5938",
+                "territories": {"6": ["all"]},
+                "variables": ["37", "498", "513", "517", "525", "543", "6575"],
+            }
+        ]
+
+    def create_table(self, engine: sa.Engine):
+        ddl = database.build_ddl(
+            schema=self.config.db_schema,
+            table_name=self.config.db_table,
+            tablespace=self.config.db_tablespace,
             columns={
-                "Ano": "ano",
-                "Município (Código)": "id_municipio",
-                "Variável": "variavel",
-                "Unidade de Medida": "unidade",
-                "Valor": "valor",
+                "ano": "SMALLINT NOT NULL",
+                "id_municipio": "TEXT NOT NULL",
+                "variavel": "TEXT",
+                "unidade": "TEXT",
+                "valor": "BIGINT",
             },
+            primary_keys=("ano", "id_municipio", "variavel", "unidade"),
         )
-        .assign(
-            id_municipio=lambda x: x["id_municipio"].astype(str),
+        dcl = database.build_dcl(
+            schema=self.config.db_schema,
+            table_name=self.config.db_table,
+            table_owner=self.config.db_user,
+            table_user=self.config.db_readonly_role,
         )
-    )
-    return df
+        with Session(engine) as session:
+            session.execute(sa.text(ddl))
+            session.execute(sa.text(dcl))
+            session.commit()
 
-
-def create_table(engine: sa.engine.Engine, config: Config):
-    user = config.db_user
-    schema = config.db_schema
-    table_name = config.db_table
-    tablespace = config.db_tablespace
-    ddl = f"""
-    CREATE TABLE IF NOT EXISTS {schema}.{table_name}
-    (
-        ano SMALLINT NOT NULL,
-        id_municipio TEXT NOT NULL,
-        variavel TEXT,
-        unidade TEXT,
-        valor BIGINT,
-        CONSTRAINT {table_name}_pkey PRIMARY KEY (ano, id_municipio, variavel, unidade)
-    )
-
-    TABLESPACE {tablespace};
-
-    ALTER TABLE IF EXISTS {schema}.{table_name}
-        OWNER to {user};
-    """
-    with Session(engine) as session:
-        session.execute(sa.text(ddl))
-        session.commit()
+    def refine(self, df: pd.DataFrame) -> pd.DataFrame:
+        columns = [
+            "Ano",
+            "Município (Código)",
+            "Variável",
+            "Unidade de Medida",
+            "Valor",
+        ]
+        df = (
+            df.dropna(subset="Valor")[columns]
+            .rename(
+                columns={
+                    "Ano": "ano",
+                    "Município (Código)": "id_municipio",
+                    "Variável": "variavel",
+                    "Unidade de Medida": "unidade",
+                    "Valor": "valor",
+                },
+            )
+            .assign(
+                id_municipio=lambda x: x["id_municipio"].astype(str),
+            )
+        )
+        return df
 
 
 def main():
-    sidra_tabela = "5938"
-
-    with sidra.Fetcher() as fetcher:
-        filepaths = fetcher.download_table(
-            sidra_tabela=sidra_tabela,
-            territories={"6": ["all"]},
-            variables=["37", "498", "513", "517", "525", "543", "6575"],
-        )
-
-    db_table = "pibmunic"
-    config = Config(db_table)
-    engine = database.get_engine(config)
-    create_table(engine, config)
-    for filepath in filepaths:
-        df = storage.read_file(
-            filepath,
-            usecols=(
-                "Ano",
-                "Município (Código)",
-                "Variável",
-                "Unidade de Medida",
-                "Valor",
-            ),
-        )
-
-        df = refine(df)
-
-        database.load(df, engine, config)
+    config = Config(db_table="pibmunic")
+    script = PibMunicScript(config)
+    script.run()
 
 
 if __name__ == "__main__":

@@ -20,86 +20,64 @@ import pandas as pd
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
-from ibge_sidra_tabelas import database, sidra, storage
+from ibge_sidra_tabelas import database
+from ibge_sidra_tabelas.base import BaseScript
 from ibge_sidra_tabelas.config import Config
 
 
-def get_tabelas() -> Iterable[dict[str, Any]]:
-    tabela_5930 = {
-        "sidra_tabela": "5930",
-        "territories": {"6": []},  # 6 = Brasil
-        "variables": ["allxp"],
-        "classifications": {"734": ["allxt"]},  # Espécie florestal
-    }
-    return (tabela_5930,)
+class AreaFlorestalScript(BaseScript):
+    def get_tabelas(self) -> Iterable[dict[str, Any]]:
+        tabela_5930 = {
+            "sidra_tabela": "5930",
+            "territories": {"6": []},  # 6 = Brasil
+            "variables": ["allxp"],
+            "classifications": {"734": ["allxt"]},  # Espécie florestal
+        }
+        return (tabela_5930,)
 
+    def create_table(self, engine: sa.Engine):
+        ddl = database.build_ddl(
+            schema=self.config.db_schema,
+            table_name=self.config.db_table,
+            tablespace=self.config.db_tablespace,
+            columns={
+                "ano": "SMALLINT NOT NULL",
+                "id_municipio": "TEXT NOT NULL",
+                "especie_florestal": "TEXT NOT NULL",
+                "unidade": "TEXT NOT NULL",
+                "area": "INTEGER",
+            },
+            primary_keys=("ano", "id_municipio", "especie_florestal"),
+        )
+        dcl = database.build_dcl(
+            schema=self.config.db_schema,
+            table_name=self.config.db_table,
+            table_owner=self.config.db_user,
+            table_user=self.config.db_readonly_role,
+        )
+        with Session(engine) as session:
+            session.execute(sa.text(ddl))
+            session.execute(sa.text(dcl))
+            session.commit()
 
-def download(
-    fetcher: sidra.Fetcher, tabelas: Iterable[dict[str, Any]]
-) -> list[dict[str, Any]]:
-    data_files = []
-    for tabela in tabelas:
-        _filepaths = fetcher.download_table(**tabela)
-        for filepath in _filepaths:
-            data_files.append(tabela | {"filepath": filepath})
-    return data_files
-
-
-def create_table(engine: sa.Engine, config: Config):
-    ddl = database.build_ddl(
-        schema=config.db_schema,
-        table_name=config.db_table,
-        tablespace=config.db_tablespace,
-        columns={
-            "ano": "SMALLINT NOT NULL",
-            "id_municipio": "TEXT NOT NULL",
-            "especie_florestal": "TEXT NOT NULL",
-            "unidade": "TEXT NOT NULL",
-            "area": "INTEGER",
-        },
-        primary_keys=("ano", "id_municipio", "especie_florestal"),
-    )
-    dcl = database.build_dcl(
-        schema=config.db_schema,
-        table_name=config.db_table,
-        table_owner=config.db_user,
-        table_user=config.db_readonly_role,
-    )
-    with Session(engine) as session:
-        session.execute(sa.text(ddl))
-        session.execute(sa.text(dcl))
-        session.commit()
-
-
-def refine(df: pd.DataFrame) -> pd.DataFrame:
-    columns_rename = {
-        "Ano (Código)": "ano",
-        "Município (Código)": "id_municipio",
-        "Espécie florestal": "especie_florestal",
-        "Unidade de Medida": "unidade",
-        "Valor": "area",
-    }
-    df = df[list(columns_rename.keys())]
-    df = df.rename(columns=columns_rename)
-    df = df.astype({"ano": int, "id_municipio": str})
-    return df
+    def refine(self, df: pd.DataFrame) -> pd.DataFrame:
+        columns_rename = {
+            "Ano (Código)": "ano",
+            "Município (Código)": "id_municipio",
+            "Espécie florestal": "especie_florestal",
+            "Unidade de Medida": "unidade",
+            "Valor": "area",
+        }
+        df = df[list(columns_rename.keys())]
+        df = df.rename(columns=columns_rename)
+        df = df.astype({"ano": int, "id_municipio": str})
+        return df
 
 
 def main():
-    tabelas = get_tabelas()
-    with sidra.Fetcher() as fetcher:
-        data_files = download(fetcher=fetcher, tabelas=tabelas)
-
-    db_table = "pevs_area_florestal"
-    config = Config(db_table=db_table)
-    engine = database.get_engine(config)
-    create_table(engine, config)
-
-    for data_file in data_files:
-        filepath = data_file["filepath"]
-        df = storage.read_file(filepath)
-        df = refine(df)
-        database.load(df, engine=engine, config=config)
+    config = Config(db_table="pevs_area_florestal")
+    script = AreaFlorestalScript(config)
+    script.run()
 
 
 if __name__ == "__main__":

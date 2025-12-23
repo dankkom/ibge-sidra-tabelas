@@ -156,70 +156,70 @@ Fonte: IBGE - Contagem da População
 
 """
 
+from typing import Any, Iterable
+
 import pandas as pd
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
-from ibge_sidra_tabelas import database, sidra, storage
+from ibge_sidra_tabelas import database
+from ibge_sidra_tabelas.base import BaseScript
 from ibge_sidra_tabelas.config import Config
 
 
-def refine(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.dropna(subset="Valor").rename(
-        columns={
-            "Ano": "ano",
-            "Município (Código)": "id_municipio",
-            "Valor": "n_pessoas",
-        }
-    )
-    return df
+class ContagemPopulacaoScript(BaseScript):
+    def get_tabelas(self) -> Iterable[dict[str, Any]]:
+        sidra_tabelas = (
+            "305",
+            "793",
+        )
+        return [
+            {
+                "sidra_tabela": sidra_tabela,
+                "territories": {"6": ["all"]},  # All municipalities in Brazil
+            }
+            for sidra_tabela in sidra_tabelas
+        ]
 
+    def create_table(self, engine: sa.Engine):
+        ddl = database.build_ddl(
+            schema=self.config.db_schema,
+            table_name=self.config.db_table,
+            tablespace=self.config.db_tablespace,
+            columns={
+                "ano": "SMALLINT NOT NULL",
+                "id_municipio": "TEXT NOT NULL",
+                "n_pessoas": "INTEGER",
+            },
+            primary_keys=("ano", "id_municipio"),
+            comment="População por município\nFonte: Contagem da População do IBGE",
+        )
+        dcl = database.build_dcl(
+            schema=self.config.db_schema,
+            table_name=self.config.db_table,
+            table_owner=self.config.db_user,
+            table_user=self.config.db_readonly_role,
+        )
+        with Session(engine) as session:
+            session.execute(sa.text(ddl))
+            session.execute(sa.text(dcl))
+            session.commit()
 
-def create_table(engine: sa.engine.Engine, config: Config):
-    ddl = database.build_ddl(
-        schema=config.db_schema,
-        table_name=config.db_table,
-        tablespace=config.db_tablespace,
-        columns={"ano": "SMALLINT NOT NULL", "id_municipio": "TEXT NOT NULL", "n_pessoas": "INTEGER"},
-        primary_keys=("ano", "id_municipio"),
-        comment="População por município\nFonte: Contagem da População do IBGE",
-    )
-    dcl = database.build_dcl(
-        schema=config.db_schema,
-        table_name=config.db_table,
-        table_owner=config.db_user,
-        table_user=config.db_readonly_role,
-    )
-    with Session(engine) as session:
-        session.execute(sa.text(ddl))
-        session.execute(sa.text(dcl))
-        session.commit()
+    def refine(self, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.dropna(subset="Valor").rename(
+            columns={
+                "Ano": "ano",
+                "Município (Código)": "id_municipio",
+                "Valor": "n_pessoas",
+            }
+        )
+        return df
 
 
 def main():
-    sidra_tabelas = (
-        "305",
-        "793",
-    )
-
-    filepaths = []
-    with sidra.Fetcher() as fetcher:
-        for sidra_tabela in sidra_tabelas:
-            _filepaths = fetcher.download_table(
-                sidra_tabela=sidra_tabela,
-                territories={"6": ["all"]},  # All municipalities in Brazil
-            )
-            filepaths.extend(_filepaths)
-
-    db_table = "contagem_populacao"
-    config = Config(db_table=db_table)
-    engine = database.get_engine(config)
-    create_table(engine, config)
-
-    for filepath in filepaths:
-        df = storage.read_file(filepath, usecols=("Ano", "Município (Código)", "Valor"))
-        df = refine(df)
-        database.load(df, engine, config)
+    config = Config(db_table="contagem_populacao")
+    script = ContagemPopulacaoScript(config)
+    script.run()
 
 
 if __name__ == "__main__":
