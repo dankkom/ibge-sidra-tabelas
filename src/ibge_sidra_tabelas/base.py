@@ -5,7 +5,7 @@ from typing import Any, Iterable
 import pandas as pd
 import sqlalchemy as sa
 
-from . import database, sidra
+from . import database, sidra, storage
 from .config import Config
 
 logger = logging.getLogger(__name__)
@@ -46,7 +46,7 @@ class BaseScript(ABC):
         """Load downloaded data into the database."""
         for data_file in data_files:
             logger.info("Reading file %s", data_file["filepath"])
-            df = pd.read_csv(data_file["filepath"])
+            df = storage.read_file(data_file["filepath"])
             df = self.refine(df)
             logger.info("Loading data into %s", self.config.db_table)
             df.to_sql(
