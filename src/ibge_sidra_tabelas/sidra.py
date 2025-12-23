@@ -6,7 +6,7 @@ from typing import Generator
 import httpx
 import pandas as pd
 from sidra_fetcher.api.agregados import Classificacao
-from sidra_fetcher.api.sidra import Parametro
+from sidra_fetcher.api.sidra import Formato, Parametro, Precisao
 from sidra_fetcher.fetcher import SidraClient
 
 from .storage import get_data_dir, get_filename, write_file
@@ -64,7 +64,8 @@ class Fetcher:
                 variaveis=variables,
                 periodos=[periodo.id],
                 classificacoes=classifications,
-                decimais="/d/m",
+                decimais={"": Precisao.M},
+                formato=Formato.C,
             )
             filename = get_filename(
                 parameter=parameter,
