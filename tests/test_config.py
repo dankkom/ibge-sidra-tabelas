@@ -1,0 +1,61 @@
+import os
+import tempfile
+import unittest
+from pathlib import Path
+
+from ibge_sidra_tabelas.config import Config, setup_logging
+
+
+class TestConfig(unittest.TestCase):
+    def test_config_reads_values_and_str(self):
+        content = """
+[database]
+user = alice
+password = secret
+host = db.example
+port = 5432
+dbname = sample_db
+schema = public
+tablespace = pg_default
+readonly_role = readonly
+"""
+
+        cwd = os.getcwd()
+        td = tempfile.mkdtemp()
+        try:
+            os.chdir(td)
+            (Path(td) / "config.ini").write_text(content)
+
+            cfg = Config(db_table="mytable")
+            self.assertEqual(cfg.db_user, "alice")
+            self.assertEqual(cfg.db_password, "secret")
+            self.assertEqual(cfg.db_host, "db.example")
+            self.assertEqual(cfg.db_port, "5432")
+            self.assertEqual(cfg.db_name, "sample_db")
+            self.assertEqual(cfg.db_schema, "public")
+            self.assertEqual(cfg.db_table, "mytable")
+            self.assertEqual(cfg.db_tablespace, "pg_default")
+            self.assertEqual(cfg.db_readonly_role, "readonly")
+
+            s = str(cfg)
+            self.assertIn("db_user: alice", s)
+            self.assertIn("db_table: mytable", s)
+        finally:
+            os.chdir(cwd)
+
+    def test_setup_logging_creates_handlers_and_file(self):
+        td = tempfile.mkdtemp()
+        log_path = Path(td) / "test.log"
+
+        logger = setup_logging("test_logger_for_unit", log_path)
+        # logger should have handlers attached and propagation disabled
+        self.assertFalse(logger.propagate)
+        self.assertGreaterEqual(len(logger.handlers), 2)
+
+        # Emit a log and ensure the file is created
+        logger.info("hello")
+        self.assertTrue(log_path.exists())
+
+
+if __name__ == "__main__":
+    unittest.main()
