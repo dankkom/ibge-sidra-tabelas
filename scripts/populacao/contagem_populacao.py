@@ -169,16 +169,17 @@ from ibge_sidra_tabelas.config import Config
 
 class ContagemPopulacaoScript(BaseScript):
     def get_tabelas(self) -> Iterable[dict[str, Any]]:
-        sidra_tabelas = (
-            "305",
-            "793",
-        )
         return [
             {
-                "sidra_tabela": sidra_tabela,
+                "sidra_tabela": "305",
                 "territories": {"6": ["all"]},  # All municipalities in Brazil
-            }
-            for sidra_tabela in sidra_tabelas
+                "variables": ["allxp"],  # All variables
+                "classifications": {"293": ["0"], "1": ["0"]},
+            },
+            {
+                "sidra_tabela": "793",
+                "territories": {"6": ["all"]},  # All municipalities in Brazil
+            },
         ]
 
     def create_table(self, engine: sa.Engine):
@@ -208,11 +209,12 @@ class ContagemPopulacaoScript(BaseScript):
     def refine(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.dropna(subset="Valor").rename(
             columns={
-                "Ano": "ano",
+                "Ano (Código)": "ano",
                 "Município (Código)": "id_municipio",
                 "Valor": "n_pessoas",
             }
         )
+        df = df[["ano", "id_municipio", "n_pessoas"]]
         return df
 
 

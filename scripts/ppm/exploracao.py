@@ -84,11 +84,11 @@ class ExploracaoScript(BaseScript):
 
     def refine(self, df: pd.DataFrame) -> pd.DataFrame:
         columns_rename = {
-            "Unidade de Medida": "unidade",
+            "Unidade de Medida (Código)": "unidade",
             "Valor": "valor",
             "Município (Código)": "id_municipio",
-            "Ano": "ano",
-            "Variável": "variavel",
+            "Ano (Código)": "ano",
+            "Variável (Código)": "variavel",
         }
         df = df[list(columns_rename.keys())]
         df = df.rename(columns=columns_rename)

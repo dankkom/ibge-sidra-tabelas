@@ -117,15 +117,15 @@ class ProducaoScript(BaseScript):
         columns_rename = {
             "Ano (Código)": "ano",
             "Município (Código)": "id_municipio",
-            "Variável": "variavel",
-            "Unidade de Medida": "unidade",
+            "Variável (Código)": "variavel",
+            "Unidade de Medida (Código)": "unidade",
             "Valor": "valor",
         }
-        if "Tipo de produto extrativo" in df.columns:
-            columns_rename |= {"Tipo de produto extrativo": "produto"}
+        if "Tipo de produto extrativo (Código)" in df.columns:
+            columns_rename |= {"Tipo de produto extrativo (Código)": "produto"}
             grupo_produto = "Extração vegetal"
-        elif "Tipo de produto da silvicultura" in df.columns:
-            columns_rename |= {"Tipo de produto da silvicultura": "produto"}
+        elif "Tipo de produto da silvicultura (Código)" in df.columns:
+            columns_rename |= {"Tipo de produto da silvicultura (Código)": "produto"}
             grupo_produto = "Silvicultura"
         df = df[list(columns_rename.keys())]
         df = df.rename(columns=columns_rename)

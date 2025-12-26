@@ -66,11 +66,12 @@ class CensoPopulacaoScript(BaseScript):
     def refine(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.dropna(subset="Valor").rename(
             columns={
-                "Ano": "ano",
+                "Ano (Código)": "ano",
                 "Município (Código)": "id_municipio",
                 "Valor": "n_pessoas",
             }
         )
+        df = df[["ano", "id_municipio", "n_pessoas"]]
         return df
 
 

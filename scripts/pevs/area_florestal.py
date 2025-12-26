@@ -64,8 +64,8 @@ class AreaFlorestalScript(BaseScript):
         columns_rename = {
             "Ano (Código)": "ano",
             "Município (Código)": "id_municipio",
-            "Espécie florestal": "especie_florestal",
-            "Unidade de Medida": "unidade",
+            "Espécie florestal (Código)": "especie_florestal",
+            "Unidade de Medida (Código)": "unidade",
             "Valor": "area",
         }
         df = df[list(columns_rename.keys())]

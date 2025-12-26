@@ -81,20 +81,20 @@ class PibMunicScript(BaseScript):
 
     def refine(self, df: pd.DataFrame) -> pd.DataFrame:
         columns = [
-            "Ano",
+            "Ano (Código)",
             "Município (Código)",
-            "Variável",
-            "Unidade de Medida",
+            "Variável (Código)",
+            "Unidade de Medida (Código)",
             "Valor",
         ]
         df = (
             df.dropna(subset="Valor")[columns]
             .rename(
                 columns={
-                    "Ano": "ano",
+                    "Ano (Código)": "ano",
                     "Município (Código)": "id_municipio",
-                    "Variável": "variavel",
-                    "Unidade de Medida": "unidade",
+                    "Variável (Código)": "variavel",
+                    "Unidade de Medida (Código)": "unidade",
                     "Valor": "valor",
                 },
             )

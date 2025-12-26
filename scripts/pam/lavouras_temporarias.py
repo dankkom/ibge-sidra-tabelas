@@ -222,9 +222,9 @@ class LavourasTemporariasScript(BaseScript):
         columns_rename = {
             "Ano (Código)": "ano",
             "Município (Código)": "id_municipio",
-            "Produto das lavouras temporárias": "produto",
-            "Variável": "variavel",
-            "Unidade de Medida": "unidade",
+            "Produto das lavouras temporárias (Código)": "produto",
+            "Variável (Código)": "variavel",
+            "Unidade de Medida (Código)": "unidade",
             "Valor": "valor",
         }
         df = df[list(columns_rename.keys())]

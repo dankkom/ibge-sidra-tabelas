@@ -79,18 +79,18 @@ class ProducaoScript(BaseScript):
 
     def refine(self, df: pd.DataFrame) -> pd.DataFrame:
         columns_rename = {
-            "Unidade de Medida": "unidade",
+            "Unidade de Medida (Código)": "unidade",
             "Valor": "valor",
             "Município (Código)": "id_municipio",
-            "Ano": "ano",
-            "Variável": "variavel",
+            "Ano (Código)": "ano",
+            "Variável (Código)": "variavel",
         }
-        if "Tipo de produto de origem animal" in df.columns:
+        if "Tipo de produto de origem animal (Código)" in df.columns:
             grupo_produto = "Pecuária"
-            columns_rename |= {"Tipo de produto de origem animal": "produto"}
-        elif "Tipo de produto da aquicultura" in df.columns:
+            columns_rename |= {"Tipo de produto de origem animal (Código)": "produto"}
+        elif "Tipo de produto da aquicultura (Código)" in df.columns:
             grupo_produto = "Aquicultura"
-            columns_rename |= {"Tipo de produto da aquicultura": "produto"}
+            columns_rename |= {"Tipo de produto da aquicultura (Código)": "produto"}
         df = df[list(columns_rename.keys())]
         df = df.rename(columns=columns_rename)
         df = df.assign(

@@ -77,15 +77,16 @@ class RebanhosScript(BaseScript):
 
     def refine(self, df: pd.DataFrame) -> pd.DataFrame:
         columns_rename = {
-            "Unidade de Medida": "unidade",
+            "Unidade de Medida (Código)": "unidade",
             "Valor": "valor",
             "Município (Código)": "id_municipio",
-            "Ano": "ano",
-            "Variável": "variavel",
-            "Tipo de rebanho": "tipo_rebanho",
+            "Ano (Código)": "ano",
+            "Variável (Código)": "variavel",
+            "Tipo de rebanho (Código)": "tipo_rebanho",
         }
         df = df[list(columns_rename.keys())]
         df = df.rename(columns=columns_rename)
+        df = df.dropna(subset=["valor"]).drop_duplicates()
         return df
 
 
@@ -93,27 +94,6 @@ def main():
     config = Config(db_table="ppm_rebanhos")
     script = RebanhosScript(config)
     script.run()
-
-
-if __name__ == "__main__":
-    main()
-
-
-def main():
-    with sidra.Fetcher() as fetcher:
-        tabelas = get_tabelas(fetcher=fetcher)
-        data_files = download(fetcher=fetcher, tabelas=tabelas)
-
-    db_table = "ppm_rebanhos"
-    config = Config(db_table=db_table)
-    engine = database.get_engine(config)
-    create_table(engine, config)
-
-    for data_file in data_files:
-        filepath = data_file["filepath"]
-        df = storage.read_file(filepath)
-        df = refine(df)
-        database.load(df, engine=engine, config=config)
 
 
 if __name__ == "__main__":
