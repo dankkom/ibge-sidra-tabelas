@@ -135,7 +135,7 @@ class BaseScript(ABC):
                 schema=self.config.db_schema,
                 if_exists="append",
                 index=False,
-                method="multi",
+                method=database.insert_on_conflict_do_nothing,
                 chunksize=1000,
             )
 

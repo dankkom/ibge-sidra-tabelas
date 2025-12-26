@@ -18,6 +18,7 @@ from typing import Iterable
 import pandas as pd
 import sqlalchemy as sa
 import sqlalchemy.exc
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from .config import Config
 
@@ -46,6 +47,24 @@ def get_engine(config: Config) -> sa.engine.Engine:
     connection_string = f"postgresql+psycopg://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
     engine = sa.create_engine(connection_string)
     return engine
+
+
+def insert_on_conflict_do_nothing(pd_table, conn, keys, data_iter):
+    """Pandas to_sql method that performs an INSERT ON CONFLICT DO NOTHING.
+
+    This is useful for bulk loading where some keys might already exist.
+    """
+    data = [dict(zip(keys, row)) for row in data_iter]
+    if not data:
+        return
+
+    columns = [sa.Column(k) for k in keys]
+    table = sa.Table(pd_table.name, sa.MetaData(), *columns, schema=pd_table.schema)
+
+    stmt = pg_insert(table).values(data)
+    stmt = stmt.on_conflict_do_nothing()
+
+    conn.execute(stmt)
 
 
 def load(df: pd.DataFrame, engine: sa.engine.Engine, config: Config):
