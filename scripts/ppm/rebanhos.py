@@ -1,21 +1,3 @@
-"""Pesquisa da Pecuária Municipal - Efetivo dos rebanhos, por tipo de rebanho
-
-Tabela 3939 - Efetivo dos rebanhos, por tipo de rebanho (Vide Notas)
-
-https://sidra.ibge.gov.br/tabela/3939
-
----
-
-Tabela 73 - Efetivo dos rebanhos, por tipo de rebanho (série encerrada) (Vide Notas)
-
-https://sidra.ibge.gov.br/tabela/73
-
----
-
-Fonte: IBGE - Pesquisa da Pecuária Municipal
-
-"""
-
 from typing import Any, Iterable
 
 import pandas as pd

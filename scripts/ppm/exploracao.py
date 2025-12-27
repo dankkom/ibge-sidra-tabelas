@@ -1,35 +1,3 @@
-"""Pesquisa da Pecuária Municipal - Ovinos tosquiados & Vacas ordenhadas
-
-https://sidra.ibge.gov.br/pesquisa/ppm/tabelas
-
-Objetivo
-
-Fornecer informações estatísticas sobre efetivo dos rebanhos, ovinos
-tosquiados, vacas ordenhadas, produtos de origem animal e produção da
-aquicultura.
-
-Periodicidade e âmbito de investigação
-
-O inquérito é anual e atinge todo o território nacional, com informações para o
-Brasil, Regiões Geográficas, Unidades da Federação, Mesorregiões Geográficas,
-Microrregiões Geográficas e Municípios.
-
----
-
-Tabela 95 - Ovinos tosquiados (Vide Notas)
-
-https://sidra.ibge.gov.br/tabela/95
-
----
-
-Tabela 94 - Vacas ordenhadas (Vide Notas)
-
-https://sidra.ibge.gov.br/tabela/94
-
-Fonte: IBGE - Pesquisa da Pecuária Municipal
-
-"""
-
 from typing import Any, Iterable
 
 import pandas as pd

@@ -1,19 +1,3 @@
-"""Produção da Extração Vegetal e da Silvicultura
-
-Tabela 5930 - Área total existente em 31/12 dos efetivos da silvicultura, por
-              espécie florestal (Vide Notas)
-
-https://sidra.ibge.gov.br/tabela/5930
-
-Notas:
-
-1 - Os dados do último ano divulgado são RESULTADOS PRELIMINARES e podem sofrer
-    alterações até a próxima divulgação.
-
-Fonte: IBGE - Produção da Extração Vegetal e da Silvicultura
-
-"""
-
 from typing import Any, Iterable
 
 import pandas as pd

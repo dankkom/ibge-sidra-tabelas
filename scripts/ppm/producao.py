@@ -1,19 +1,3 @@
-"""Pesquisa da Pecuária Municipal - Produção de origem animal & Produção da aquicultura
-
-Tabela 74 - Produção de origem animal, por tipo de produto (Vide Notas)
-
-https://sidra.ibge.gov.br/tabela/74
-
----
-
-Tabela 3940 - Produção da aquicultura, por tipo de produto (Vide Notas)
-
-https://sidra.ibge.gov.br/tabela/3940
-
-Fonte: IBGE - Pesquisa da Pecuária Municipal
-
-"""
-
 from typing import Any
 
 import pandas as pd
