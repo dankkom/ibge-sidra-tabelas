@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from sidra_fetcher.api.sidra import Parametro
+from sidra_fetcher.sidra import Parametro
 
 from .config import DATA_DIR
 
