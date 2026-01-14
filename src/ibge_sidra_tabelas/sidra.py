@@ -96,7 +96,11 @@ class Fetcher:
         periodos = self.sidra_client.get_agregado_periodos(
             agregado_id=int(sidra_tabela)
         )
-        for periodo in periodos:
+        for i, periodo in enumerate(periodos):
+            if i == 0:
+                formato = Formato.A  # Formato: Códigos e Nomes dos descritores
+            else:
+                formato = Formato.C  # Formato: Apenas códigos dos descritores
             parameter = Parametro(
                 agregado=sidra_tabela,
                 territorios=territories,
@@ -104,7 +108,7 @@ class Fetcher:
                 periodos=[periodo.id],
                 classificacoes=classifications,
                 decimais={"": Precisao.M},  # Precisão: Máxima
-                formato=Formato.C,  # Formato: Apenas códigos dos descritores
+                formato=formato,
             )
             filename = get_filename(
                 parameter=parameter,
