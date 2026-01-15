@@ -23,7 +23,7 @@ from sidra_fetcher.agregados import Classificacao
 from sidra_fetcher.fetcher import SidraClient
 from sidra_fetcher.sidra import Formato, Parametro, Precisao
 
-from .storage import get_data_dir, get_filename, write_file
+from .storage import get_data_dir, get_filename, write_json
 
 logger = logging.getLogger(__name__)
 
@@ -121,13 +121,13 @@ class Fetcher:
                 logger.warning("File already exists: %s", dest_filepath)
                 continue
             logger.info("Downloading %s", filename)
-            df = self.get_table(parameter)
-            write_file(df=df, dest_filepath=dest_filepath)
+            data = self.get_table(parameter)
+            write_json(data=data, dest_filepath=dest_filepath)
             filepaths.append(dest_filepath)
         return filepaths
 
-    def get_table(self, parameter: Parametro) -> pd.DataFrame:
-        """Request a SIDRA table and return it as a pandas DataFrame.
+    def get_table(self, parameter: Parametro) -> dict:
+        """Request a SIDRA table and return it as a dictionary.
 
         This method calls the underlying `SidraClient` using the URL
         produced by ``parameter.url()``. It retries on common transient
@@ -139,14 +139,13 @@ class Fetcher:
                 configuration.
 
         Returns:
-            A `pandas.DataFrame` constructed from the JSON response.
+            A `dict` constructed from the JSON response.
         """
         url = parameter.url()
         while True:
             try:
                 data = self.sidra_client.get(url)
-                df = pd.DataFrame(data)
-                return df
+                return data
             except httpx.ReadTimeout as e:
                 logger.error("Read timeout while fetching data: %s", e)
                 logger.info("Retrying in 5 seconds...")

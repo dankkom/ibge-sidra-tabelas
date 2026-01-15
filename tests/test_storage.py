@@ -43,7 +43,7 @@ class TestStorage(unittest.TestCase):
         modification = "2005-01-05"
         filename = get_filename(parameter, modification)
         expected_filename = (
-            "t-123_p-202001,202002_f-C_n6-12345,67890_v-allxp_c-@2005-01-05.csv"
+            "t-123_p-202001,202002_f-C_n6-12345,67890_v-allxp_c-@2005-01-05.json"
         )
         self.assertEqual(filename, expected_filename)
 
@@ -58,7 +58,7 @@ class TestStorage(unittest.TestCase):
         )
         modification = "2021-01-01"
         filename = get_filename(parameter, modification)
-        expected = "t-999_p-202101_f-C_n6-all_c10-1,2@2021-01-01.csv"
+        expected = "t-999_p-202101_f-C_n6-all_c10-1,2@2021-01-01.json"
         self.assertEqual(filename, expected)
 
     def test_write_and_read_file_with_metadata(self):

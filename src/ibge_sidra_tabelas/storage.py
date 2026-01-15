@@ -38,8 +38,8 @@ def get_filename(parameter: Parametro, modification: str):
 
     The filename encodes the table id, periods, format, territorial
     levels, variables and classifications so that each unique request
-    maps to a unique CSV name. The returned filename ends with
-    ``@{modification}.csv`` where ``modification`` is typically the
+    maps to a unique JSON name. The returned filename ends with
+    ``@{modification}.json`` where ``modification`` is typically the
     period modification timestamp used by the API.
 
     Args:
@@ -50,7 +50,7 @@ def get_filename(parameter: Parametro, modification: str):
             to append to the filename.
 
     Returns:
-        A string suitable for use as a CSV filename.
+        A string suitable for use as a JSON filename.
     """
     sidra_table = parameter.agregado
     periods = ",".join(parameter.periodos)
@@ -70,8 +70,25 @@ def get_filename(parameter: Parametro, modification: str):
         str_categories = ",".join(categories)
         name += f"_c{classification}-{str_categories}"
     name += f"@{modification}"
-    name += ".csv"
+    name += ".json"
     return name
+
+
+def write_json(data: dict, dest_filepath: Path):
+    """Write a dictionary to JSON using UTF-8 encoding.
+
+    The function logs the operation and writes the provided dictionary to
+    ``dest_filepath`` with ``index=False`` to match the format produced
+    by the SIDRA API client.
+
+    Args:
+        data: A `dict` containing the table data.
+        dest_filepath: Destination `pathlib.Path` where the JSON will be
+            written. Parent directories should already exist.
+    """
+    logger.info("Writing file %s", dest_filepath)
+    with dest_filepath.open("w", encoding="utf-8") as f:
+        json.dump(data, f)
 
 
 def write_file(df: pd.DataFrame, dest_filepath: Path):
@@ -88,6 +105,22 @@ def write_file(df: pd.DataFrame, dest_filepath: Path):
     """
     logger.info("Writing file %s", dest_filepath)
     df.to_csv(dest_filepath, index=False, encoding="utf-8")
+
+
+def read_json(filepath: Path) -> pd.DataFrame:
+    """Read a JSON file previously written by `write_json`.
+
+    Args:
+        filepath: Path to the JSON file to read.
+
+    Returns:
+        A `pandas.DataFrame` containing the table data.
+    """
+    logger.info("Reading file %s", filepath)
+    with filepath.open("r", encoding="utf-8") as f:
+        # Skip the first row
+        next(f)
+        return pd.read_json(f, orient="records", lines=True, na_values=["...", "-"])
 
 
 def read_file(filepath: Path, **read_csv_args: Any) -> pd.DataFrame:
