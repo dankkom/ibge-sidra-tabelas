@@ -87,6 +87,7 @@ def write_json(data: dict, dest_filepath: Path):
             written. Parent directories should already exist.
     """
     logger.info("Writing file %s", dest_filepath)
+    dest_filepath.parent.mkdir(parents=True, exist_ok=True)
     with dest_filepath.open("w", encoding="utf-8") as f:
         json.dump(data, f)
 
@@ -104,6 +105,7 @@ def write_file(df: pd.DataFrame, dest_filepath: Path):
             written. Parent directories should already exist.
     """
     logger.info("Writing file %s", dest_filepath)
+    dest_filepath.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(dest_filepath, index=False, encoding="utf-8")
 
 
