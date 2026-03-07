@@ -22,7 +22,7 @@ from sidra_fetcher.agregados import Classificacao
 from sidra_fetcher.fetcher import SidraClient
 from sidra_fetcher.sidra import Formato, Parametro, Precisao
 
-from .storage import get_data_dir, get_filename, write_json
+from .storage import Storage
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ class Fetcher:
 
     def __init__(self):
         self.sidra_client = SidraClient(timeout=600)
-        self.data_dir = get_data_dir()
+        self.storage = Storage.default()
 
     def download_table(
         self,
@@ -109,19 +109,15 @@ class Fetcher:
                 decimais={"": Precisao.M},  # Precisão: Máxima
                 formato=formato,
             )
-            filename = get_filename(
-                parameter=parameter,
-                modification=periodo.modificacao.isoformat(),
-            )
-            dest_filepath = self.data_dir / f"t-{sidra_tabela}" / filename
-            dest_filepath.parent.mkdir(exist_ok=True, parents=True)
-            if dest_filepath.exists():
+            modification = periodo.modificacao.isoformat()
+            if self.storage.exists(parameter, modification):
+                dest_filepath = self.storage.get_filepath(parameter, modification)
                 filepaths.append(dest_filepath)
                 logger.warning("File already exists: %s", dest_filepath)
                 continue
-            logger.info("Downloading %s", filename)
+            logger.info("Downloading %s", self.storage.get_filepath(parameter, modification).name)
             data = self.get_table(parameter)
-            write_json(data=data, dest_filepath=dest_filepath)
+            dest_filepath = self.storage.write(data=data, parameter=parameter, modification=modification)
             filepaths.append(dest_filepath)
         return filepaths
 

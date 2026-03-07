@@ -18,8 +18,9 @@ from typing import Any, Iterable
 import pandas as pd
 import sqlalchemy as sa
 
-from . import database, sidra, storage
+from . import database, sidra
 from .config import Config
+from .storage import Storage
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,7 @@ class BaseScript(ABC):
                 parameters and destination table/schema names.
         """
         self.config = config
+        self.storage = Storage.default()
         self.fetcher = sidra.Fetcher()
 
     @abstractmethod
@@ -126,7 +128,7 @@ class BaseScript(ABC):
         """
         for data_file in data_files:
             logger.info("Reading file %s", data_file["filepath"])
-            df = storage.read_json(data_file["filepath"])
+            df = self.storage.read(data_file["filepath"])
             df = self.refine(df)
             logger.info("Loading data into %s", self.config.db_table)
             df.to_sql(
