@@ -18,7 +18,6 @@ from pathlib import Path
 from typing import Generator
 
 import httpx
-import pandas as pd
 from sidra_fetcher.agregados import Classificacao
 from sidra_fetcher.fetcher import SidraClient
 from sidra_fetcher.sidra import Formato, Parametro, Precisao
