@@ -39,16 +39,18 @@ class BaseScript(ABC):
         fetcher: A `sidra.Fetcher` instance used to download tables.
     """
 
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, max_workers: int = 4):
         """Initialize the script with the given configuration.
 
         Args:
             config: Project configuration including database connection
                 parameters and destination table/schema names.
+            max_workers: Maximum number of concurrent period downloads
+                passed through to `sidra.Fetcher`.
         """
         self.config = config
         self.storage = Storage.default()
-        self.fetcher = sidra.Fetcher()
+        self.fetcher = sidra.Fetcher(max_workers=max_workers)
 
     @abstractmethod
     def get_tabelas(self) -> Iterable[dict[str, Any]]:

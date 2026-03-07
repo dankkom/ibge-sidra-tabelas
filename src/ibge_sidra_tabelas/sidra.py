@@ -14,6 +14,7 @@ Public API
 
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Generator
 
@@ -42,12 +43,14 @@ class Fetcher:
     Attributes:
         sidra_client: An instance of `SidraClient` used to perform HTTP
             requests to the SIDRA API.
-        data_dir: Base directory where downloaded files will be stored.
+        storage: `Storage` repository where downloaded files are written.
+        max_workers: Maximum number of concurrent period downloads.
     """
 
-    def __init__(self):
+    def __init__(self, max_workers: int = 4):
         self.sidra_client = SidraClient(timeout=600)
         self.storage = Storage.default()
+        self.max_workers = max_workers
 
     def download_table(
         self,
@@ -91,15 +94,15 @@ class Fetcher:
                 for classificacao in metadados.classificacoes
             }
 
-        filepaths: list[Path] = []
         periodos = self.sidra_client.get_agregado_periodos(
             agregado_id=int(sidra_tabela)
         )
+
+        # Pre-build all Parametro objects so index-dependent logic (Formato.A
+        # for the first period) is resolved before submitting to the thread pool.
+        period_params: list[tuple[Parametro, str]] = []
         for i, periodo in enumerate(periodos):
-            if i == 0:
-                formato = Formato.A  # Formato: Códigos e Nomes dos descritores
-            else:
-                formato = Formato.C  # Formato: Apenas códigos dos descritores
+            formato = Formato.A if i == 0 else Formato.C
             parameter = Parametro(
                 agregado=sidra_tabela,
                 territorios=territories,
@@ -109,17 +112,29 @@ class Fetcher:
                 decimais={"": Precisao.M},  # Precisão: Máxima
                 formato=formato,
             )
-            modification = periodo.modificacao.isoformat()
-            if self.storage.exists(parameter, modification):
-                dest_filepath = self.storage.get_filepath(parameter, modification)
-                filepaths.append(dest_filepath)
-                logger.warning("File already exists: %s", dest_filepath)
-                continue
-            logger.info("Downloading %s", self.storage.get_filepath(parameter, modification).name)
-            data = self.get_table(parameter)
-            dest_filepath = self.storage.write(data=data, parameter=parameter, modification=modification)
-            filepaths.append(dest_filepath)
-        return filepaths
+            period_params.append((parameter, periodo.modificacao.isoformat()))
+
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            futures = [
+                executor.submit(self._download_period, parameter, modification)
+                for parameter, modification in period_params
+            ]
+        return [f.result() for f in futures]
+
+    def _download_period(self, parameter: Parametro, modification: str) -> Path:
+        """Download a single period and save it; return the destination path."""
+        if self.storage.exists(parameter, modification):
+            filepath = self.storage.get_filepath(parameter, modification)
+            logger.warning("File already exists: %s", filepath)
+            return filepath
+        logger.info(
+            "Downloading %s",
+            self.storage.get_filepath(parameter, modification).name,
+        )
+        data = self.get_table(parameter)
+        return self.storage.write(
+            data=data, parameter=parameter, modification=modification
+        )
 
     def get_table(self, parameter: Parametro) -> dict:
         """Request a SIDRA table and return it as a dictionary.
