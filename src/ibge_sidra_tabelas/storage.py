@@ -74,6 +74,10 @@ class Storage:
         name += ".json"
         return name
 
+    def get_metadata_filepath(self, agregado: int | str) -> Path:
+        """Return the full path for a table's metadata JSON file."""
+        return self.data_dir / f"t-{agregado}" / "metadados.json"
+
     def get_filepath(self, parameter: Parametro, modification: str) -> Path:
         """Return the full path for the given parameter and modification."""
         filename = self.build_filename(parameter, modification)
@@ -83,7 +87,12 @@ class Storage:
         """Return True if the file for the given parameter already exists."""
         return self.get_filepath(parameter, modification).exists()
 
-    def write(self, data: dict, parameter: Parametro, modification: str) -> Path:
+    def write(
+        self,
+        data: dict,
+        parameter: Parametro,
+        modification: str,
+    ) -> Path:
         """Write *data* to disk as JSON and return the destination path."""
         filepath = self.get_filepath(parameter, modification)
         filepath.parent.mkdir(parents=True, exist_ok=True)
