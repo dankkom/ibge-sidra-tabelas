@@ -44,8 +44,12 @@ def get_engine(config: Config) -> sa.engine.Engine:
     db_host = config.db_host
     db_port = config.db_port
     db_name = config.db_name
+    db_schema = config.db_schema
     connection_string = f"postgresql+psycopg://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
-    engine = sa.create_engine(connection_string)
+    engine = sa.create_engine(
+        connection_string,
+        connect_args={"options": f"-c search_path={db_schema}"},
+    )
     return engine
 
 
