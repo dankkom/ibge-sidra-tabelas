@@ -25,6 +25,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from ibge_sidra_tabelas.models import Dimensao, Localidade, SidraTabela
 
 from .config import Config
+from .utils import unnest_dimensoes
 
 logger = logging.getLogger(__name__)
 
@@ -202,139 +203,38 @@ def save_agregado(engine: sa.engine.Engine, agregado: Agregado):
         conn.execute(sa.insert(SidraTabela).values(sidra_tabela))
         conn.commit()
 
-    localidades = []
-    for localidade in agregado.localidades:
-        localidades.append(
-            dict(
-                sidra_tabela_id=agregado.id,
-                nc=localidade.nivel.id,
-                nn=localidade.nivel.nome,
-                d1c=localidade.id,
-                d1n=localidade.nome,
-            )
+    localidades_iter = (
+        dict(
+            sidra_tabela_id=agregado.id,
+            nc=localidade.nivel.id,
+            nn=localidade.nivel.nome,
+            d1c=localidade.id,
+            d1n=localidade.nome,
         )
-    # Insert Localidade
+        for localidade in agregado.localidades
+    )
+    # Insert Localidade in batches
     with engine.connect() as conn:
-        conn.execute(sa.insert(Localidade).values(localidades))
-        conn.commit()
+        while True:
+            batch = list(itertools.islice(localidades_iter, 1000))
+            if not batch:
+                break
+            conn.execute(sa.insert(Localidade).values(batch))
+            conn.commit()
 
-    def unnest_dimensoes(
-        agregado_id: int,
-        variaveis: list,
-        classificacoes: list,
-    ) -> list[dict]:
-        """Expand variables × classification categories into flat Dimensao rows.
-
-        For each variable, computes the cartesian product of all categories
-        across every classification (up to 6, mapped to d4–d9).  The unit of
-        measure (``mc``/``mn``) is resolved with the following precedence:
-
-        1. The category's own ``unidade`` field (when not ``None``).
-        2. The variable's ``unidade`` field as a fallback.
-
-        Args:
-            agregado_id: Primary key of the parent ``SidraTabela`` row.
-            variaveis: Iterable of :class:`~sidra_fetcher.agregados.Variavel`.
-            classificacoes: Iterable of
-                :class:`~sidra_fetcher.agregados.Classificacao`.
-
-        Returns:
-            A list of :class:`~ibge_sidra_tabelas.models.Dimensao` instances,
-            one per (variavel, combination-of-categories) tuple.
-        """
-
-        # Pre-build a list of (categoria_list,) per classificacao so that
-        # itertools.product can expand them correctly.
-        cats_per_classificacao = [
-            classificacao.categorias for classificacao in classificacoes
-        ]
-
-        # Pad slots d4–d9: the model supports up to 6 classifications.
-        MAX_CLASSIFICACOES = 6
-
-        rows: list[Dimensao] = []
-
-        for variavel in variaveis:
-            variavel_id = str(variavel.id)
-            variavel_nome = variavel.nome
-            unidade_nome = variavel.unidade
-
-            if not cats_per_classificacao:
-                # No classifications: one row per variable with null d4–d9.
-                rows.append(
-                    dict(
-                        sidra_tabela_id=str(agregado_id),
-                        mc=None,
-                        mn=unidade_nome or "",
-                        d2c=variavel_id,
-                        d2n=variavel_nome,
-                        d4c=None,
-                        d4n=None,
-                        d5c=None,
-                        d5n=None,
-                        d6c=None,
-                        d6n=None,
-                        d7c=None,
-                        d7n=None,
-                        d8c=None,
-                        d8n=None,
-                        d9c=None,
-                        d9n=None,
-                    )
-                )
-                continue
-
-            # Cartesian product across all classifications.
-            for combo in itertools.product(*cats_per_classificacao):
-                # Resolve unit: first category that provides one wins;
-                # fall back to the variable's own unit.
-                unidade = unidade_nome
-                for cat in combo:
-                    if cat.unidade is not None:
-                        unidade = cat.unidade
-                        break
-
-                # Map combo slots → d4…d9 (pad with None when fewer than 6).
-                padded = list(combo) + [None] * (
-                    MAX_CLASSIFICACOES - len(combo)
-                )
-
-                def _id(cat):
-                    return str(cat.id) if cat is not None else None
-
-                def _nome(cat):
-                    return cat.nome if cat is not None else None
-
-                rows.append(
-                    dict(
-                        sidra_tabela_id=str(agregado_id),
-                        mc=unidade or "",
-                        mn=unidade or "",
-                        d2c=variavel_id,
-                        d2n=variavel_nome,
-                        d4c=_id(padded[0]),
-                        d4n=_nome(padded[0]),
-                        d5c=_id(padded[1]),
-                        d5n=_nome(padded[1]),
-                        d6c=_id(padded[2]),
-                        d6n=_nome(padded[2]),
-                        d7c=_id(padded[3]),
-                        d7n=_nome(padded[3]),
-                        d8c=_id(padded[4]),
-                        d8n=_nome(padded[4]),
-                        d9c=_id(padded[5]),
-                        d9n=_nome(padded[5]),
-                    )
-                )
-
-        return rows
-
-    dimensoes = unnest_dimensoes(
+    dimensoes_iter = unnest_dimensoes(
         agregado_id=agregado.id,
         variaveis=agregado.variaveis,
         classificacoes=agregado.classificacoes,
     )
-    # Insert Dimensao
+    # Insert Dimensao in batches
+    batches = 0
     with engine.connect() as conn:
-        conn.execute(sa.insert(Dimensao).values(dimensoes))
-        conn.commit()
+        while True:
+            batch = list(itertools.islice(dimensoes_iter, 1000))
+            if not batch:
+                break
+            conn.execute(sa.insert(Dimensao).values(batch))
+            conn.commit()
+            batches += 1
+            print(f"Batch {batches} inserted")
