@@ -63,7 +63,12 @@ def insert_on_conflict_do_nothing(pd_table, conn, keys, data_iter):
         return
 
     columns = [sa.Column(k) for k in keys]
-    table = sa.Table(pd_table.name, sa.MetaData(), *columns, schema=pd_table.schema)
+    table = sa.Table(
+        pd_table.name,
+        sa.MetaData(),
+        *columns,
+        schema=pd_table.schema,
+    )
 
     stmt = pg_insert(table).values(data)
     stmt = stmt.on_conflict_do_nothing()
@@ -124,7 +129,12 @@ def build_ddl(
         COMMENT statement. The caller is responsible for executing the
         DDL against the database.
     """
-    table_definition = ", ".join([f"{column_name} {column_type}" for column_name, column_type in columns.items()])
+    table_definition = ", ".join(
+        [
+            f"{column_name} {column_type}"
+            for column_name, column_type in columns.items()
+        ]
+    )
     primary_keys_definition = ", ".join(primary_keys)
 
     ddl_create_table = (
@@ -137,7 +147,9 @@ def build_ddl(
 
     ddl_comment_table = ""
     if comment:
-        ddl_comment_table = f"COMMENT ON TABLE {schema}.{table_name} IS '{comment}';"
+        ddl_comment_table = (
+            f"COMMENT ON TABLE {schema}.{table_name} IS '{comment}';"
+        )
 
     ddl = "\n\n".join((ddl_create_table, ddl_comment_table))
 
@@ -162,7 +174,9 @@ def build_dcl(
         A string containing ALTER TABLE and GRANT statements separated
         by a blank line.
     """
-    dcl_table_owner = f"ALTER TABLE IF EXISTS {schema}.{table_name} OWNER TO {table_owner};"
+    dcl_table_owner = (
+        f"ALTER TABLE IF EXISTS {schema}.{table_name} OWNER TO {table_owner};"
+    )
 
     dcl_grant = f"GRANT SELECT ON TABLE {schema}.{table_name} TO {table_user};"
 
