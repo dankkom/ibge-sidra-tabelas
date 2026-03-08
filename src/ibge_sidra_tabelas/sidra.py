@@ -102,6 +102,8 @@ class Fetcher:
         # for the first period) is resolved before submitting to the thread pool.
         period_params: list[tuple[Parametro, str]] = []
         for i, periodo in enumerate(periodos):
+            # For the first period get the names of dimensions
+            # Subsequent requests get only the dimensions codes
             formato = Formato.A if i == 0 else Formato.C
             parameter = Parametro(
                 agregado=sidra_tabela,
@@ -121,7 +123,11 @@ class Fetcher:
             ]
         return [f.result() for f in futures]
 
-    def _download_period(self, parameter: Parametro, modification: str) -> Path:
+    def _download_period(
+        self,
+        parameter: Parametro,
+        modification: str,
+    ) -> Path:
         """Download a single period and save it; return the destination path."""
         if self.storage.exists(parameter, modification):
             filepath = self.storage.get_filepath(parameter, modification)
