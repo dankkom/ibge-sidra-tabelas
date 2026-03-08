@@ -6,6 +6,8 @@ from sqlalchemy import (
     Identity,
     Text,
     UniqueConstraint,
+    func,
+    relationship,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -21,10 +23,14 @@ class SidraTabela(Base):
     id: Mapped[str] = mapped_column(Text, primary_key=True)
     nome: Mapped[str] = mapped_column(Text, nullable=False)
     periodicidade: Mapped[str] = mapped_column(Text, nullable=False)
-    ultima_atualizacao: Mapped[Date] = mapped_column(Date, nullable=False)
-    metadados: Mapped[JSONB] = mapped_column(JSONB, nullable=False)
-    localidades: Mapped[JSONB] = mapped_column(JSONB, nullable=False)
-    periodos: Mapped[JSONB] = mapped_column(JSONB, nullable=False)
+    ultima_atualizacao: Mapped[Date] = mapped_column(
+        Date,
+        nullable=False,
+        default=func.now(),
+        onupdate=func.now(),
+    )
+    localidades = relationship("Localidade", back_populates="sidra_tabela")
+    periodos = relationship("Periodo", back_populates="sidra_tabela")
 
 
 class Localidade(Base):
@@ -35,11 +41,12 @@ class Localidade(Base):
         Identity(always=True),
         primary_key=True,
     )
-    tabela_id: Mapped[str] = mapped_column(
+    sidra_tabela_id: Mapped[str] = mapped_column(
         ForeignKey("sidra_tabela.id"),
         nullable=False,
         index=True,
     )
+    sidra_tabela = relationship("SidraTabela", back_populates="localidades")
     # NC = NIVEL TERRITORIAL ID
     nc: Mapped[str] = mapped_column(Text, nullable=False)
     # NN = NIVEL TERRITORIAL NOME
@@ -76,6 +83,7 @@ class Dimensao(Base):
         nullable=False,
         index=True,
     )
+    sidra_tabela = relationship("SidraTabela", back_populates="dimensoes")
     # MC = UNIDADE ID
     mc: Mapped[str] = mapped_column(Text, nullable=False)
     # MN = UNIDADE NOME
@@ -123,11 +131,13 @@ class Dados(Base):
         nullable=False,
         index=True,
     )
+    sidra_tabela = relationship("SidraTabela", back_populates="dados")
     dimensao_id: Mapped[int] = mapped_column(
         ForeignKey("dimensao.id"),
         nullable=False,
         index=True,
     )
+    dimensao = relationship("Dimensao", back_populates="dados")
     # D3C = PERIODO ID
     d3c: Mapped[str] = mapped_column(Text, nullable=False)
     modificacao: Mapped[Date] = mapped_column(Date, nullable=False)
