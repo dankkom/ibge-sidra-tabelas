@@ -7,10 +7,8 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
-    relationship,
 )
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
@@ -61,7 +59,9 @@ class Dimensao(Base):
     __tablename__ = "dimensao"
     __table_args__ = (
         UniqueConstraint(
+            "sidra_tabela_id",
             "mc",
+            "mn",
             "d2c",
             "d4c",
             "d5c",
