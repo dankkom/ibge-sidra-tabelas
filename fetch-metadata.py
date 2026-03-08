@@ -1,0 +1,54 @@
+import argparse
+
+from sidra_fetcher.agregados import Agregado
+from sidra_fetcher.fetcher import SidraClient
+
+from ibge_sidra_tabelas import database, models
+from ibge_sidra_tabelas.config import Config
+
+
+def get_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Fetch metadata of a table from IBGE Sidra"
+    )
+    parser.add_argument("table", type=str, help="Table ID")
+    return parser.parse_args()
+
+
+def main():
+    args = get_args()
+    config = Config(db_table="test")
+    engine = database.get_engine(config)
+    models.Base.metadata.create_all(engine)
+    with SidraClient() as client:
+        agregado: Agregado = client.get_agregado_metadados(int(args.table))
+        localidades = []
+        for nivel in agregado.nivel_territorial.administrativo:
+            localidades.extend(
+                client.get_agregado_localidades(
+                    agregado_id=int(args.table),
+                    localidades_nivel=nivel,
+                )
+            )
+        for nivel in agregado.nivel_territorial.ibge:
+            localidades.extend(
+                client.get_agregado_localidades(
+                    agregado_id=int(args.table),
+                    localidades_nivel=nivel,
+                )
+            )
+        for nivel in agregado.nivel_territorial.especial:
+            localidades.extend(
+                client.get_agregado_localidades(
+                    agregado_id=int(args.table),
+                    localidades_nivel=nivel,
+                )
+            )
+        agregado.localidades = localidades
+        agregado.periodos = client.get_agregado_periodos(int(args.table))
+
+    database.save_agregado(engine, agregado)
+
+
+if __name__ == "__main__":
+    main()
