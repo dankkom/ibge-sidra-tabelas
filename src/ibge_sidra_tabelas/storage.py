@@ -34,7 +34,7 @@ class Storage:
         return cls(data_dir)
 
     @staticmethod
-    def build_filename(parameter: Parametro, modification: str) -> str:
+    def build_data_filename(parameter: Parametro, modification: str) -> str:
         """Build a deterministic filename for a SIDRA `Parametro`.
 
         The filename encodes the table id, periods, format, territorial
@@ -78,30 +78,34 @@ class Storage:
         """Return the full path for a table's metadata JSON file."""
         return self.data_dir / f"t-{agregado}" / "metadados.json"
 
-    def get_filepath(self, parameter: Parametro, modification: str) -> Path:
+    def get_data_filepath(
+        self,
+        parameter: Parametro,
+        modification: str,
+    ) -> Path:
         """Return the full path for the given parameter and modification."""
-        filename = self.build_filename(parameter, modification)
+        filename = self.build_data_filename(parameter, modification)
         return self.data_dir / f"t-{parameter.agregado}" / filename
 
     def exists(self, parameter: Parametro, modification: str) -> bool:
         """Return True if the file for the given parameter already exists."""
-        return self.get_filepath(parameter, modification).exists()
+        return self.get_data_filepath(parameter, modification).exists()
 
-    def write(
+    def write_data(
         self,
         data: dict,
         parameter: Parametro,
         modification: str,
     ) -> Path:
         """Write *data* to disk as JSON and return the destination path."""
-        filepath = self.get_filepath(parameter, modification)
+        filepath = self.get_data_filepath(parameter, modification)
         filepath.parent.mkdir(parents=True, exist_ok=True)
         logger.info("Writing file %s", filepath)
         with filepath.open("w", encoding="utf-8") as f:
             json.dump(data, f)
         return filepath
 
-    def read(self, filepath: Path) -> pd.DataFrame:
+    def read_data(self, filepath: Path) -> pd.DataFrame:
         """Read a JSON file previously written by `write`.
 
         Args:

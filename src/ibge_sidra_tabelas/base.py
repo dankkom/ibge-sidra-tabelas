@@ -130,7 +130,7 @@ class BaseScript(ABC):
         """
         for data_file in data_files:
             logger.info("Reading file %s", data_file["filepath"])
-            df = self.storage.read(data_file["filepath"])
+            df = self.storage.read_data(data_file["filepath"])
             df = self.refine(df)
             logger.info("Loading data into %s", self.config.db_table)
             df.to_sql(

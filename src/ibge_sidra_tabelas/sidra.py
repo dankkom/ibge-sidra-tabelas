@@ -130,15 +130,15 @@ class Fetcher:
     ) -> Path:
         """Download a single period and save it; return the destination path."""
         if self.storage.exists(parameter, modification):
-            filepath = self.storage.get_filepath(parameter, modification)
+            filepath = self.storage.get_data_filepath(parameter, modification)
             logger.warning("File already exists: %s", filepath)
             return filepath
         logger.info(
             "Downloading %s",
-            self.storage.get_filepath(parameter, modification).name,
+            self.storage.get_data_filepath(parameter, modification).name,
         )
         data = self.get_table(parameter)
-        return self.storage.write(
+        return self.storage.write_data(
             data=data, parameter=parameter, modification=modification
         )
 
