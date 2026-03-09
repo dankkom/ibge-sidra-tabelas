@@ -11,6 +11,8 @@ import logging
 from pathlib import Path
 
 import pandas as pd
+from sidra_fetcher.agregados import Agregado
+from sidra_fetcher.reader import load_agregado, save_agregado
 from sidra_fetcher.sidra import Parametro
 
 from .config import DATA_DIR
@@ -119,3 +121,17 @@ class Storage:
             next(f)  # skip the first row
             df = pd.read_json(f, orient="records", lines=True)
         return df.replace(["...", "-"], pd.NA)
+
+    def write_metadata(self, agregado: Agregado) -> Path:
+        """Write *agregado* metadata to disk as JSON and return the destination path."""
+        filepath = self.get_metadata_filepath(agregado.id)
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+        logger.info("Writing file %s", filepath)
+        save_agregado(agregado, filepath)
+        return filepath
+
+    def read_metadata(self, agregado: int | str) -> Agregado:
+        """Read metadata from disk as JSON and return the destination path."""
+        filepath = self.get_metadata_filepath(agregado)
+        agregado = load_agregado(filepath)
+        return agregado
