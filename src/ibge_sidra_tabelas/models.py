@@ -85,7 +85,7 @@ class Dimensao(Base):
     )
     sidra_tabela = relationship("SidraTabela", back_populates="dimensoes")
     # MC = UNIDADE ID
-    mc: Mapped[str] = mapped_column(Text, nullable=False)
+    mc: Mapped[str] = mapped_column(Text, nullable=True)
     # MN = UNIDADE NOME
     mn: Mapped[str] = mapped_column(Text, nullable=False)
     # D2C = VARIAVEL ID
