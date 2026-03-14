@@ -4,7 +4,7 @@ import os
 from logging import handlers
 from pathlib import Path
 
-DATA_DIR = Path(os.getenv("DATA_DIR", "data"), "raw", "ibge-tabelas")
+DATA_DIR = Path(os.getenv("DATA_DIR", "data"))
 
 
 class Config:
