@@ -117,9 +117,8 @@ class Storage:
             A `pandas.DataFrame` containing the table data.
         """
         logger.info("Reading file %s", filepath)
-        with filepath.open("r", encoding="utf-8") as f:
-            next(f)  # skip the first row
-            df = pd.read_json(f, orient="records", lines=True)
+        df = pd.read_json(filepath, orient="records")
+        df = df.drop(index=0)
         return df.replace(["...", "-"], pd.NA)
 
     def write_metadata(self, agregado: Agregado) -> Path:
