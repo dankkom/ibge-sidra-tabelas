@@ -134,3 +134,9 @@ class Storage:
         filepath = self.get_metadata_filepath(agregado)
         agregado = load_agregado(filepath)
         return agregado
+
+    def read_data_dir(self, dirpath: Path) -> pd.DataFrame:
+        df = pd.DataFrame()
+        for f in dirpath.glob("*.json"):
+            df = pd.concat((df, self.read_data(f)), ignore_index=True)
+        return df
