@@ -1,3 +1,4 @@
+import sqlalchemy as sa
 from sqlalchemy import (
     BigInteger,
     Boolean,
@@ -8,6 +9,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -27,8 +29,11 @@ class SidraTabela(Base):
         default=func.now(),
         onupdate=func.now(),
     )
+    metadados: Mapped[JSONB] = mapped_column(JSONB)
     localidades = relationship("Localidade", back_populates="sidra_tabela")
     periodos = relationship("Periodo", back_populates="sidra_tabela")
+    dimensoes = relationship("Dimensao", back_populates="sidra_tabela")
+    dados = relationship("Dados", back_populates="sidra_tabela")
 
 
 class Localidade(Base):
@@ -61,7 +66,6 @@ class Dimensao(Base):
         UniqueConstraint(
             "sidra_tabela_id",
             "mc",
-            "mn",
             "d2c",
             "d4c",
             "d5c",
@@ -84,6 +88,7 @@ class Dimensao(Base):
         index=True,
     )
     sidra_tabela = relationship("SidraTabela", back_populates="dimensoes")
+    dados = relationship("Dados", back_populates="dimensao")
     # MC = UNIDADE ID
     mc: Mapped[str] = mapped_column(Text, nullable=True)
     # MN = UNIDADE NOME
@@ -120,6 +125,7 @@ class Dimensao(Base):
 
 class Dados(Base):
     __tablename__ = "dados"
+    __table_args__ = (sa.Index("ix_dados_periodo", "sidra_tabela_id", "d3c"),)
 
     id: Mapped[int] = mapped_column(
         BigInteger,
