@@ -14,7 +14,6 @@ dependencies = [
     "pandas>=2.3.0",
     "psycopg[binary]>=3.2.9",
     "sqlalchemy>=2.0.41",
-    "requests>=2.32.4",
 ]
 
 [tool.hatch.metadata]
