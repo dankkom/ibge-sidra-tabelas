@@ -128,6 +128,72 @@ class BaseScript(ABC):
                 lookup[key] = row.id
             return lookup
 
+    def _update_dimensao_mc(
+        self, engine: sa.Engine, data_files: list[dict[str, Any]]
+    ):
+        """Extract MC (unit code) from Formato.A files and update dimensao."""
+        dim_cols = ["D2C", "D4C", "D5C", "D6C", "D7C", "D8C", "D9C"]
+
+        for data_file in data_files:
+            filepath = data_file["filepath"]
+            # Only process Formato.A files
+            if "_f-a_" not in filepath.name:
+                continue
+
+            sidra_tabela_id = str(data_file["sidra_tabela"])
+            logger.info("Extracting MC from %s", filepath)
+
+            df = self.storage.read_data(filepath)
+            if df.empty or "MC" not in df.columns:
+                continue
+
+            # Ensure dimension columns exist
+            for col in dim_cols:
+                if col not in df.columns:
+                    df[col] = None
+
+            # Get unique (D2C, D4C-D9C, MC) combinations
+            seen: set[tuple] = set()
+            with engine.connect() as conn:
+                for _, row in df.iterrows():
+                    mc = row.get("MC")
+                    if pd.isna(mc):
+                        continue
+                    mc = str(mc)
+
+                    key_vals = tuple(
+                        str(row[c]) if pd.notna(row.get(c)) else None
+                        for c in dim_cols
+                    )
+                    if key_vals in seen:
+                        continue
+                    seen.add(key_vals)
+
+                    # Build WHERE clause for matching dimensao row
+                    conditions = [
+                        models.Dimensao.sidra_tabela_id == sidra_tabela_id,
+                    ]
+                    for col_name, val in zip(dim_cols, key_vals):
+                        col = getattr(models.Dimensao, col_name.lower())
+                        if val is None:
+                            conditions.append(col.is_(None))
+                        else:
+                            conditions.append(col == val)
+
+                    stmt = (
+                        sa.update(models.Dimensao)
+                        .where(*conditions)
+                        .values(mc=mc)
+                    )
+                    conn.execute(stmt)
+                conn.commit()
+
+            logger.info(
+                "Updated MC for %d dimension combinations in table %s",
+                len(seen),
+                sidra_tabela_id,
+            )
+
     def load_data(self, engine: sa.Engine, data_files: list[dict[str, Any]]):
         """Load downloaded data files into the dados table."""
         dimensao_lookups: dict[str, dict[tuple, int]] = {}
@@ -229,5 +295,6 @@ class BaseScript(ABC):
             self.load_metadata(engine, tabelas)
             data_files = self.download(tabelas)
 
+        self._update_dimensao_mc(engine, data_files)
         self.load_data(engine, data_files)
         logger.info("Script execution finished")
