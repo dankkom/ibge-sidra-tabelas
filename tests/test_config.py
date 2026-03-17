@@ -26,20 +26,18 @@ readonly_role = readonly
             os.chdir(td)
             (Path(td) / "config.ini").write_text(content)
 
-            cfg = Config(db_table="mytable")
+            cfg = Config()
             self.assertEqual(cfg.db_user, "alice")
             self.assertEqual(cfg.db_password, "secret")
             self.assertEqual(cfg.db_host, "db.example")
             self.assertEqual(cfg.db_port, "5432")
             self.assertEqual(cfg.db_name, "sample_db")
             self.assertEqual(cfg.db_schema, "public")
-            self.assertEqual(cfg.db_table, "mytable")
             self.assertEqual(cfg.db_tablespace, "pg_default")
             self.assertEqual(cfg.db_readonly_role, "readonly")
 
             s = str(cfg)
             self.assertIn("db_user: alice", s)
-            self.assertIn("db_table: mytable", s)
         finally:
             os.chdir(cwd)
 

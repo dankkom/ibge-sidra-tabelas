@@ -6,8 +6,6 @@
 
 from typing import Any
 
-from sqlalchemy import Engine
-
 from ibge_sidra_tabelas.base import BaseScript
 from ibge_sidra_tabelas.config import Config
 
@@ -41,15 +39,9 @@ class IPCA15Script(BaseScript):
             tabelas.extend(_tabelas)
         return tabelas
 
-    def create_table(self, engine: Engine):
-        return super().create_table(engine)
-
-    def refine(self, df):
-        return super().refine(df)
-
 
 def main():
-    config = Config(db_table="ipca15")
+    config = Config()
     script = IPCA15Script(config)
     script.run()
 

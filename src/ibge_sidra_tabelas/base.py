@@ -4,11 +4,12 @@ This module defines `BaseScript`, an abstract base that encapsulates a
 typical workflow used throughout the project:
 
 - Determine which SIDRA tables to fetch (`get_tabelas`).
-- Download table CSVs using the `sidra.Fetcher` helper.
-- Refine the raw data (`refine`) and load it into a SQL database.
+- Download table data and metadata using the `sidra.Fetcher` helper.
+- Load metadata into sidra_tabela, localidade and dimensao tables.
+- Load data into the dados table.
 
-Concrete scripts should subclass `BaseScript` and implement the
-abstract methods: `get_tabelas`, `create_table` and `refine`.
+Concrete scripts should subclass `BaseScript` and implement
+the abstract method `get_tabelas`.
 """
 
 import logging
@@ -17,8 +18,9 @@ from typing import Any, Iterable
 
 import pandas as pd
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from . import database, sidra
+from . import database, models, sidra
 from .config import Config
 from .storage import Storage
 
@@ -28,26 +30,15 @@ logger = logging.getLogger(__name__)
 class BaseScript(ABC):
     """Abstract base for scripts that fetch SIDRA data and load it.
 
-    Subclasses must implement the three abstract methods used to
-    declare which tables to fetch, create the target database table,
-    and transform raw DataFrames into the shape expected by the
-    database.
+    Subclasses must implement `get_tabelas` to declare which tables
+    to fetch.
 
     Attributes:
-        config: A `Config` instance containing database and runtime
-            configuration (see `config.Config`).
+        config: A `Config` instance containing database configuration.
         fetcher: A `sidra.Fetcher` instance used to download tables.
     """
 
     def __init__(self, config: Config, max_workers: int = 4):
-        """Initialize the script with the given configuration.
-
-        Args:
-            config: Project configuration including database connection
-                parameters and destination table/schema names.
-            max_workers: Maximum number of concurrent period downloads
-                passed through to `sidra.Fetcher`.
-        """
         self.config = config
         self.storage = Storage.default()
         self.fetcher = sidra.Fetcher(max_workers=max_workers)
@@ -59,55 +50,13 @@ class BaseScript(ABC):
         Each yielded dictionary must contain the keyword arguments
         accepted by `sidra.Fetcher.download_table` (for example
         ``sidra_tabela``, ``territories``, ``variables``, ``classifications``).
-
-        Returns:
-            An iterable of dictionaries describing tables to download.
-        """
-        pass
-
-    @abstractmethod
-    def create_table(self, engine: sa.Engine):
-        """Create the destination database table if it does not exist.
-
-        Implementations should use the provided SQLAlchemy ``engine`` to
-        execute DDL necessary to create the target schema/table matching
-        the structure produced by ``refine``.
-        """
-        pass
-
-    @abstractmethod
-    def refine(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Transform a raw SIDRA DataFrame into the loadable format.
-
-        This method receives the DataFrame returned by
-        `storage.read_file` and must return a cleaned/normalized
-        DataFrame ready to be written to the configured database table.
-
-        Args:
-            df: Raw DataFrame read from the SIDRA CSV.
-
-        Returns:
-            A transformed DataFrame ready for ``to_sql``.
         """
         pass
 
     def download(
         self, tabelas: Iterable[dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        """Download all tables described by ``tabelas``.
-
-        For each table definition yielded by ``tabelas`` this method
-        delegates to the `sidra.Fetcher` to download each period's CSV.
-        The returned list contains the original table definition with an
-        added ``"filepath"`` key for each downloaded file.
-
-        Args:
-            tabelas: Iterable of table-definition dictionaries.
-
-        Returns:
-            A list of dictionaries where each entry includes a
-            ``"filepath"`` key pointing to the downloaded CSV.
-        """
+        """Download all tables described by ``tabelas``."""
         data_files = []
         for tabela in tabelas:
             _filepaths = self.fetcher.download_table(**tabela)
@@ -115,26 +64,143 @@ class BaseScript(ABC):
                 data_files.append(tabela | {"filepath": filepath})
         return data_files
 
+    def load_metadata(
+        self, engine: sa.Engine, tabelas: Iterable[dict[str, Any]]
+    ):
+        """Fetch and save metadata for all unique SIDRA tables."""
+        seen: set[str] = set()
+        for tabela in tabelas:
+            sidra_tabela_id = tabela["sidra_tabela"]
+            if sidra_tabela_id in seen:
+                continue
+            seen.add(sidra_tabela_id)
+
+            metadata_filepath = self.storage.get_metadata_filepath(
+                sidra_tabela_id
+            )
+            if metadata_filepath.exists():
+                logger.info(
+                    "Reading cached metadata for table %s", sidra_tabela_id
+                )
+                agregado = self.storage.read_metadata(sidra_tabela_id)
+            else:
+                logger.info(
+                    "Fetching metadata for table %s", sidra_tabela_id
+                )
+                agregado = self.fetcher.fetch_metadata(sidra_tabela_id)
+                self.storage.write_metadata(agregado)
+
+            logger.info(
+                "Saving metadata to database for table %s", sidra_tabela_id
+            )
+            database.save_agregado(engine, agregado)
+
+    def _build_dimensao_lookup(
+        self, engine: sa.Engine, sidra_tabela_id: str
+    ) -> dict[tuple, int]:
+        """Build a lookup dict from dimension columns to dimensao ID."""
+        with engine.connect() as conn:
+            result = conn.execute(
+                sa.select(
+                    models.Dimensao.id,
+                    models.Dimensao.d2c,
+                    models.Dimensao.d4c,
+                    models.Dimensao.d5c,
+                    models.Dimensao.d6c,
+                    models.Dimensao.d7c,
+                    models.Dimensao.d8c,
+                    models.Dimensao.d9c,
+                ).where(
+                    models.Dimensao.sidra_tabela_id == sidra_tabela_id
+                )
+            )
+            lookup = {}
+            for row in result:
+                key = (
+                    row.d2c,
+                    row.d4c,
+                    row.d5c,
+                    row.d6c,
+                    row.d7c,
+                    row.d8c,
+                    row.d9c,
+                )
+                lookup[key] = row.id
+            return lookup
+
     def load_data(self, engine: sa.Engine, data_files: list[dict[str, Any]]):
-        """Load a sequence of downloaded CSVs into the configured DB.
+        """Load downloaded data files into the dados table."""
+        dimensao_lookups: dict[str, dict[tuple, int]] = {}
+        dim_cols = ["D2C", "D4C", "D5C", "D6C", "D7C", "D8C", "D9C"]
 
-        Each entry in ``data_files`` is expected to contain a
-        ``"filepath"`` key pointing to a CSV on disk. The CSV is read
-        with ``storage.read_file``, transformed via ``refine`` and
-        appended to the destination table using ``pandas.DataFrame.to_sql``.
-
-        Args:
-            engine: SQLAlchemy engine connected to the target database.
-            data_files: List of dictionaries describing files to load
-                (each must include a ``"filepath"`` key).
-        """
         for data_file in data_files:
-            logger.info("Reading file %s", data_file["filepath"])
-            df = self.storage.read_data(data_file["filepath"])
-            df = self.refine(df)
-            logger.info("Loading data into %s", self.config.db_table)
-            df.to_sql(
-                self.config.db_table,
+            sidra_tabela_id = str(data_file["sidra_tabela"])
+            filepath = data_file["filepath"]
+
+            if sidra_tabela_id not in dimensao_lookups:
+                dimensao_lookups[sidra_tabela_id] = (
+                    self._build_dimensao_lookup(engine, sidra_tabela_id)
+                )
+            lookup = dimensao_lookups[sidra_tabela_id]
+
+            # Extract modification date from filename (after @ before .json)
+            modificacao = filepath.stem.split("@")[-1]
+
+            logger.info("Reading file %s", filepath)
+            df = self.storage.read_data(filepath)
+            if df.empty:
+                continue
+
+            # Drop rows where V is missing
+            df = df.dropna(subset=["V"])
+            if df.empty:
+                continue
+
+            # Ensure dimension columns exist (fill missing with None)
+            for col in dim_cols:
+                if col not in df.columns:
+                    df[col] = None
+
+            # Build dimension lookup key for each row
+            def _make_key(row):
+                return tuple(
+                    str(row[c]) if pd.notna(row[c]) else None
+                    for c in dim_cols
+                )
+
+            df["_dim_key"] = df.apply(_make_key, axis=1)
+            df["dimensao_id"] = df["_dim_key"].map(lookup)
+
+            # Skip rows with unknown dimensao
+            missing = df["dimensao_id"].isna()
+            if missing.any():
+                logger.warning(
+                    "Skipping %d rows with unknown dimensao in %s",
+                    missing.sum(),
+                    filepath,
+                )
+                df = df[~missing]
+
+            if df.empty:
+                continue
+
+            # Build dados DataFrame
+            dados_df = pd.DataFrame(
+                {
+                    "sidra_tabela_id": sidra_tabela_id,
+                    "nc": df["NC"].astype(str),
+                    "d1c": df["D1C"].astype(str),
+                    "dimensao_id": df["dimensao_id"].astype(int),
+                    "d3c": df["D3C"].astype(str),
+                    "modificacao": modificacao,
+                    "ativo": True,
+                    "v": df["V"].astype(str),
+                }
+            )
+
+            logger.info("Loading %d rows into dados", len(dados_df))
+            dados_df.to_sql(
+                "dados",
                 engine,
                 schema=self.config.db_schema,
                 if_exists="append",
@@ -144,21 +210,24 @@ class BaseScript(ABC):
             )
 
     def run(self):
-        """Execute the complete fetch-refine-load pipeline.
+        """Execute the complete fetch-and-load pipeline.
 
         Execution steps:
-        1. Use the `sidra.Fetcher` (as a context manager) to download
-           all declared tables.
-        2. Create or validate the destination database table.
-        3. Load the transformed data into the database.
+        1. Create ORM tables if they don't exist.
+        2. Fetch and save metadata for all declared tables.
+        3. Download all data files.
+        4. Load data into the dados table.
         """
         logger.info("Starting script execution")
 
+        engine = database.get_engine(self.config)
+        models.Base.metadata.create_all(engine)
+
+        tabelas = list(self.get_tabelas())
+
         with self.fetcher:
-            tabelas = self.get_tabelas()
+            self.load_metadata(engine, tabelas)
             data_files = self.download(tabelas)
 
-        engine = database.get_engine(self.config)
-        self.create_table(engine)
         self.load_data(engine, data_files)
         logger.info("Script execution finished")

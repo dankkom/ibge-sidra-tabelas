@@ -19,11 +19,6 @@ Fonte: IBGE - Censo Demográfico
 
 from typing import Any, Iterable
 
-import pandas as pd
-import sqlalchemy as sa
-from sqlalchemy.orm import Session
-
-from ibge_sidra_tabelas import database
 from ibge_sidra_tabelas.base import BaseScript
 from ibge_sidra_tabelas.config import Config
 
@@ -33,50 +28,15 @@ class CensoPopulacaoScript(BaseScript):
         return [
             {
                 "sidra_tabela": "200",
-                "territories": {"6": ["all"]},  # All municipalities in Brazil
-                "variables": ["allxp"],  # All variables
+                "territories": {"6": ["all"]},
+                "variables": ["allxp"],
                 "classifications": {"2": ["0"], "1": ["0"], "58": ["0"]},
             }
         ]
 
-    def create_table(self, engine: sa.Engine):
-        ddl = database.build_ddl(
-            schema=self.config.db_schema,
-            table_name=self.config.db_table,
-            tablespace=self.config.db_tablespace,
-            columns={
-                "ano": "SMALLINT NOT NULL",
-                "id_municipio": "TEXT NOT NULL",
-                "n_pessoas": "INTEGER",
-            },
-            primary_keys=("ano", "id_municipio"),
-            comment="População por município\nFonte: Censos Demográficos do IBGE",
-        )
-        dcl = database.build_dcl(
-            schema=self.config.db_schema,
-            table_name=self.config.db_table,
-            table_owner=self.config.db_user,
-            table_user=self.config.db_readonly_role,
-        )
-        with Session(engine) as session:
-            session.execute(sa.text(ddl))
-            session.execute(sa.text(dcl))
-            session.commit()
-
-    def refine(self, df: pd.DataFrame) -> pd.DataFrame:
-        df = df.dropna(subset="Valor").rename(
-            columns={
-                "Ano (Código)": "ano",
-                "Município (Código)": "id_municipio",
-                "Valor": "n_pessoas",
-            }
-        )
-        df = df[["ano", "id_municipio", "n_pessoas"]]
-        return df
-
 
 def main():
-    config = Config(db_table="censo_populacao")
+    config = Config()
     script = CensoPopulacaoScript(config)
     script.run()
 

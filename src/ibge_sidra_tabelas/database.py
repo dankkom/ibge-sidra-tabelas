@@ -191,35 +191,39 @@ def build_dcl(
 
 
 def save_agregado(engine: sa.engine.Engine, agregado: Agregado):
-    """Save metadata to the database."""
+    """Save metadata to the database (idempotent)."""
 
     sidra_tabela = dict(
-        id=agregado.id,
+        id=str(agregado.id),
         nome=agregado.nome,
         periodicidade=agregado.periodicidade.frequencia,
     )
-    # Insert SidraTabela
+    # Upsert SidraTabela
     with engine.connect() as conn:
-        conn.execute(sa.insert(SidraTabela).values(sidra_tabela))
+        stmt = pg_insert(SidraTabela.__table__).values(sidra_tabela)
+        stmt = stmt.on_conflict_do_nothing()
+        conn.execute(stmt)
         conn.commit()
 
     localidades_iter = (
         dict(
-            sidra_tabela_id=agregado.id,
-            nc=localidade.nivel.id,
+            sidra_tabela_id=str(agregado.id),
+            nc=str(localidade.nivel.id),
             nn=localidade.nivel.nome,
-            d1c=localidade.id,
+            d1c=str(localidade.id),
             d1n=localidade.nome,
         )
         for localidade in agregado.localidades
     )
-    # Insert Localidade in batches
+    # Insert Localidade in batches (skip duplicates)
     with engine.connect() as conn:
         while True:
             batch = list(itertools.islice(localidades_iter, 1000))
             if not batch:
                 break
-            conn.execute(sa.insert(Localidade).values(batch))
+            stmt = pg_insert(Localidade.__table__).values(batch)
+            stmt = stmt.on_conflict_do_nothing()
+            conn.execute(stmt)
             conn.commit()
 
     dimensoes_iter = unnest_dimensoes(
@@ -227,14 +231,13 @@ def save_agregado(engine: sa.engine.Engine, agregado: Agregado):
         variaveis=agregado.variaveis,
         classificacoes=agregado.classificacoes,
     )
-    # Insert Dimensao in batches
-    batches = 0
+    # Insert Dimensao in batches (skip duplicates)
     with engine.connect() as conn:
         while True:
             batch = list(itertools.islice(dimensoes_iter, 1000))
             if not batch:
                 break
-            conn.execute(sa.insert(Dimensao).values(batch))
+            stmt = pg_insert(Dimensao.__table__).values(batch)
+            stmt = stmt.on_conflict_do_nothing()
+            conn.execute(stmt)
             conn.commit()
-            batches += 1
-            print(f"Batch {batches} inserted")

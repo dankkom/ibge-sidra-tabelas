@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Generator
 
 import httpx
-from sidra_fetcher.agregados import Classificacao
+from sidra_fetcher.agregados import Agregado, Classificacao
 from sidra_fetcher.fetcher import SidraClient
 from sidra_fetcher.sidra import Formato, Parametro, Precisao
 
@@ -98,13 +98,8 @@ class Fetcher:
             agregado_id=int(sidra_tabela)
         )
 
-        # Pre-build all Parametro objects so index-dependent logic (Formato.A
-        # for the first period) is resolved before submitting to the thread pool.
         period_params: list[tuple[Parametro, str]] = []
-        for i, periodo in enumerate(periodos):
-            # For the first period get the names of dimensions
-            # Subsequent requests get only the dimensions codes
-            formato = Formato.A if i == 0 else Formato.C
+        for periodo in periodos:
             parameter = Parametro(
                 agregado=sidra_tabela,
                 territorios=territories,
@@ -112,7 +107,7 @@ class Fetcher:
                 periodos=[periodo.id],
                 classificacoes=classifications,
                 decimais={"": Precisao.M},  # Precisão: Máxima
-                formato=formato,
+                formato=Formato.C,
             )
             period_params.append((parameter, periodo.modificacao.isoformat()))
 
@@ -122,6 +117,37 @@ class Fetcher:
                 for parameter, modification in period_params
             ]
         return [f.result() for f in futures]
+
+    def fetch_metadata(self, sidra_tabela: str) -> Agregado:
+        """Fetch full metadata for a SIDRA table including localidades and periodos."""
+        agregado = self.sidra_client.get_agregado_metadados(int(sidra_tabela))
+        localidades = []
+        for nivel in agregado.nivel_territorial.administrativo:
+            localidades.extend(
+                self.sidra_client.get_agregado_localidades(
+                    agregado_id=int(sidra_tabela),
+                    localidades_nivel=nivel,
+                )
+            )
+        for nivel in agregado.nivel_territorial.ibge:
+            localidades.extend(
+                self.sidra_client.get_agregado_localidades(
+                    agregado_id=int(sidra_tabela),
+                    localidades_nivel=nivel,
+                )
+            )
+        for nivel in agregado.nivel_territorial.especial:
+            localidades.extend(
+                self.sidra_client.get_agregado_localidades(
+                    agregado_id=int(sidra_tabela),
+                    localidades_nivel=nivel,
+                )
+            )
+        agregado.localidades = localidades
+        agregado.periodos = self.sidra_client.get_agregado_periodos(
+            int(sidra_tabela)
+        )
+        return agregado
 
     def _download_period(
         self,

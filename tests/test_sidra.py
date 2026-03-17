@@ -1,7 +1,6 @@
 import unittest
 
 import httpx
-import pandas as pd
 
 from ibge_sidra_tabelas.sidra import Fetcher, unnest_classificacoes
 
@@ -61,7 +60,7 @@ class TestSidra(unittest.TestCase):
         finally:
             sidra_module.time.sleep = orig_sleep
 
-        self.assertIsInstance(df, pd.DataFrame)
+        self.assertIsInstance(df, list)
         self.assertEqual(len(df), 2)
 
     def test_context_manager_exit_delegates(self):

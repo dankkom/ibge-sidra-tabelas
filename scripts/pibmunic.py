@@ -35,11 +35,6 @@ Fonte: IBGE, em parceria com os Órgãos Estaduais de Estatística, Secretarias
 
 from typing import Any, Iterable
 
-import pandas as pd
-import sqlalchemy as sa
-from sqlalchemy.orm import Session
-
-from ibge_sidra_tabelas import database
 from ibge_sidra_tabelas.base import BaseScript
 from ibge_sidra_tabelas.config import Config
 
@@ -54,59 +49,9 @@ class PibMunicScript(BaseScript):
             }
         ]
 
-    def create_table(self, engine: sa.Engine):
-        ddl = database.build_ddl(
-            schema=self.config.db_schema,
-            table_name=self.config.db_table,
-            tablespace=self.config.db_tablespace,
-            columns={
-                "ano": "SMALLINT NOT NULL",
-                "id_municipio": "TEXT NOT NULL",
-                "variavel": "TEXT",
-                "unidade": "TEXT",
-                "valor": "BIGINT",
-            },
-            primary_keys=("ano", "id_municipio", "variavel", "unidade"),
-        )
-        dcl = database.build_dcl(
-            schema=self.config.db_schema,
-            table_name=self.config.db_table,
-            table_owner=self.config.db_user,
-            table_user=self.config.db_readonly_role,
-        )
-        with Session(engine) as session:
-            session.execute(sa.text(ddl))
-            session.execute(sa.text(dcl))
-            session.commit()
-
-    def refine(self, df: pd.DataFrame) -> pd.DataFrame:
-        columns = [
-            "Ano (Código)",
-            "Município (Código)",
-            "Variável (Código)",
-            "Unidade de Medida (Código)",
-            "Valor",
-        ]
-        df = (
-            df.dropna(subset="Valor")[columns]
-            .rename(
-                columns={
-                    "Ano (Código)": "ano",
-                    "Município (Código)": "id_municipio",
-                    "Variável (Código)": "variavel",
-                    "Unidade de Medida (Código)": "unidade",
-                    "Valor": "valor",
-                },
-            )
-            .assign(
-                id_municipio=lambda x: x["id_municipio"].astype(str),
-            )
-        )
-        return df
-
 
 def main():
-    config = Config(db_table="pibmunic")
+    config = Config()
     script = PibMunicScript(config)
     script.run()
 

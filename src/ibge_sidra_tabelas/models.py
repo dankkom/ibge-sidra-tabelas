@@ -31,13 +31,17 @@ class SidraTabela(Base):
     )
     metadados: Mapped[JSONB] = mapped_column(JSONB)
     localidades = relationship("Localidade", back_populates="sidra_tabela")
-    periodos = relationship("Periodo", back_populates="sidra_tabela")
     dimensoes = relationship("Dimensao", back_populates="sidra_tabela")
     dados = relationship("Dados", back_populates="sidra_tabela")
 
 
 class Localidade(Base):
     __tablename__ = "localidade"
+    __table_args__ = (
+        UniqueConstraint(
+            "sidra_tabela_id", "nc", "d1c", name="uq_localidade"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(
         BigInteger,
@@ -125,7 +129,17 @@ class Dimensao(Base):
 
 class Dados(Base):
     __tablename__ = "dados"
-    __table_args__ = (sa.Index("ix_dados_periodo", "sidra_tabela_id", "d3c"),)
+    __table_args__ = (
+        sa.Index("ix_dados_periodo", "sidra_tabela_id", "d3c"),
+        UniqueConstraint(
+            "sidra_tabela_id",
+            "nc",
+            "d1c",
+            "dimensao_id",
+            "d3c",
+            name="uq_dados",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(
         BigInteger,
@@ -144,6 +158,10 @@ class Dados(Base):
         index=True,
     )
     dimensao = relationship("Dimensao", back_populates="dados")
+    # NC = NIVEL TERRITORIAL ID
+    nc: Mapped[str] = mapped_column(Text, nullable=False)
+    # D1C = UNIDADE TERRITORIAL ID
+    d1c: Mapped[str] = mapped_column(Text, nullable=False)
     # D3C = PERIODO ID
     d3c: Mapped[str] = mapped_column(Text, nullable=False)
     modificacao: Mapped[Date] = mapped_column(Date, nullable=False)
