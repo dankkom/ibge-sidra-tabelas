@@ -197,11 +197,15 @@ def save_agregado(engine: sa.engine.Engine, agregado: Agregado):
         id=str(agregado.id),
         nome=agregado.nome,
         periodicidade=agregado.periodicidade.frequencia,
+        metadados=agregado.asdict(),
     )
-    # Upsert SidraTabela
+    # Upsert SidraTabela (update metadados on conflict)
     with engine.connect() as conn:
         stmt = pg_insert(SidraTabela.__table__).values(sidra_tabela)
-        stmt = stmt.on_conflict_do_nothing()
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["id"],
+            set_={"metadados": stmt.excluded.metadados},
+        )
         conn.execute(stmt)
         conn.commit()
 
