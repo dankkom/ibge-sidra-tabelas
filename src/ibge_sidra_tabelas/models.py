@@ -29,7 +29,7 @@ class SidraTabela(Base):
         default=func.now(),
         onupdate=func.now(),
     )
-    metadados: Mapped[JSONB] = mapped_column(JSONB)
+    metadados: Mapped[JSONB] = mapped_column(JSONB, nullable=True)
     localidades = relationship("Localidade", back_populates="sidra_tabela")
     dimensoes = relationship("Dimensao", back_populates="sidra_tabela")
     dados = relationship("Dados", back_populates="sidra_tabela")
