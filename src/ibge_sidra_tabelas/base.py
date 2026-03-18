@@ -153,14 +153,19 @@ class BaseScript(ABC):
     ):
         """Extract MC (unit code) from Formato.A files and update dimensao."""
         dim_cols = ["D2C", "D4C", "D5C", "D6C", "D7C", "D8C", "D9C"]
+        processed_tables = set()
 
         for data_file in data_files:
+            sidra_tabela_id = str(data_file["sidra_tabela"])
+            if sidra_tabela_id in processed_tables:
+                continue
+
             filepath = data_file["filepath"]
             # Only process Formato.A files
             if "_f-a_" not in filepath.name:
                 continue
 
-            sidra_tabela_id = str(data_file["sidra_tabela"])
+            processed_tables.add(sidra_tabela_id)
             logger.info("Extracting MC from %s", filepath)
 
             df = self.storage.read_data(filepath)
