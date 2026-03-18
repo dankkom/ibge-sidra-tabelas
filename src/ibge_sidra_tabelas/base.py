@@ -235,12 +235,6 @@ class BaseScript(ABC):
                 )
             lookup = dimensao_lookups[sidra_tabela_id]
 
-            if sidra_tabela_id not in localidade_lookups:
-                localidade_lookups[sidra_tabela_id] = (
-                    self._build_localidade_lookup(engine, sidra_tabela_id)
-                )
-            loc_lookup = localidade_lookups[sidra_tabela_id]
-
             # Extract modification date from filename (after @ before .json)
             modificacao = filepath.stem.split("@")[-1]
 
@@ -253,6 +247,34 @@ class BaseScript(ABC):
             df = df.dropna(subset=["V"])
             if df.empty:
                 continue
+
+            # Upsert Localidades found in this data file dynamically
+            for missing_col in ["NN", "D1N"]:
+                if missing_col not in df.columns:
+                    df[missing_col] = ""
+            locs = df[["NC", "NN", "D1C", "D1N"]].drop_duplicates().copy()
+            locs = locs.rename(columns={"NC": "nc", "NN": "nn", "D1C": "d1c", "D1N": "d1n"})
+            locs["sidra_tabela_id"] = sidra_tabela_id
+            locs["nc"] = locs["nc"].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
+            locs["nn"] = locs["nn"].astype(str).str.strip()
+            locs["d1c"] = locs["d1c"].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
+            locs["d1n"] = locs["d1n"].astype(str).str.strip()
+
+            locs.to_sql(
+                "localidade",
+                engine,
+                schema=self.config.db_schema,
+                if_exists="append",
+                index=False,
+                method=database.insert_on_conflict_do_nothing,
+                chunksize=1000,
+            )
+
+            # Rebuild lookup so we have the IDs for newly inserted localidades
+            localidade_lookups[sidra_tabela_id] = self._build_localidade_lookup(
+                engine, sidra_tabela_id
+            )
+            loc_lookup = localidade_lookups[sidra_tabela_id]
 
             # Ensure dimension columns exist (fill missing with None)
             for col in dim_cols:
@@ -283,7 +305,12 @@ class BaseScript(ABC):
                 continue
 
             # Build localidade lookup key
-            df["_loc_key"] = list(zip(df["NC"].astype(str), df["D1C"].astype(str)))
+            df["_loc_key"] = list(
+                zip(
+                    df["NC"].astype(str).str.replace(r'\.0$', '', regex=True).str.strip(),
+                    df["D1C"].astype(str).str.replace(r'\.0$', '', regex=True).str.strip(),
+                )
+            )
             df["localidade_id"] = df["_loc_key"].map(loc_lookup)
 
             # Skip rows with unknown localidade
