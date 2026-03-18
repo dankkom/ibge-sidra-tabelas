@@ -95,6 +95,26 @@ class BaseScript(ABC):
             )
             database.save_agregado(engine, agregado)
 
+    def _build_localidade_lookup(
+        self, engine: sa.Engine, sidra_tabela_id: str
+    ) -> dict[tuple, int]:
+        """Build a lookup dict from localidade columns to localidade ID."""
+        with engine.connect() as conn:
+            result = conn.execute(
+                sa.select(
+                    models.Localidade.id,
+                    models.Localidade.nc,
+                    models.Localidade.d1c,
+                ).where(
+                    models.Localidade.sidra_tabela_id == sidra_tabela_id
+                )
+            )
+            lookup = {}
+            for row in result:
+                key = (row.nc, row.d1c)
+                lookup[key] = row.id
+            return lookup
+
     def _build_dimensao_lookup(
         self, engine: sa.Engine, sidra_tabela_id: str
     ) -> dict[tuple, int]:
@@ -197,6 +217,7 @@ class BaseScript(ABC):
     def load_data(self, engine: sa.Engine, data_files: list[dict[str, Any]]):
         """Load downloaded data files into the dados table."""
         dimensao_lookups: dict[str, dict[tuple, int]] = {}
+        localidade_lookups: dict[str, dict[tuple, int]] = {}
         dim_cols = ["D2C", "D4C", "D5C", "D6C", "D7C", "D8C", "D9C"]
 
         for data_file in data_files:
@@ -208,6 +229,12 @@ class BaseScript(ABC):
                     self._build_dimensao_lookup(engine, sidra_tabela_id)
                 )
             lookup = dimensao_lookups[sidra_tabela_id]
+
+            if sidra_tabela_id not in localidade_lookups:
+                localidade_lookups[sidra_tabela_id] = (
+                    self._build_localidade_lookup(engine, sidra_tabela_id)
+                )
+            loc_lookup = localidade_lookups[sidra_tabela_id]
 
             # Extract modification date from filename (after @ before .json)
             modificacao = filepath.stem.split("@")[-1]
@@ -250,12 +277,28 @@ class BaseScript(ABC):
             if df.empty:
                 continue
 
+            # Build localidade lookup key
+            df["_loc_key"] = list(zip(df["NC"].astype(str), df["D1C"].astype(str)))
+            df["localidade_id"] = df["_loc_key"].map(loc_lookup)
+
+            # Skip rows with unknown localidade
+            missing_loc = df["localidade_id"].isna()
+            if missing_loc.any():
+                logger.warning(
+                    "Skipping %d rows with unknown localidade in %s",
+                    missing_loc.sum(),
+                    filepath,
+                )
+                df = df[~missing_loc]
+
+            if df.empty:
+                continue
+
             # Build dados DataFrame
             dados_df = pd.DataFrame(
                 {
                     "sidra_tabela_id": sidra_tabela_id,
-                    "nc": df["NC"].astype(str),
-                    "d1c": df["D1C"].astype(str),
+                    "localidade_id": df["localidade_id"].astype(int),
                     "dimensao_id": df["dimensao_id"].astype(int),
                     "d3c": df["D3C"].astype(str),
                     "modificacao": modificacao,

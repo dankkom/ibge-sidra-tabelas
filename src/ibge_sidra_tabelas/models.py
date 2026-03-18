@@ -54,6 +54,7 @@ class Localidade(Base):
         index=True,
     )
     sidra_tabela = relationship("SidraTabela", back_populates="localidades")
+    dados = relationship("Dados", back_populates="localidade")
     # NC = NIVEL TERRITORIAL ID
     nc: Mapped[str] = mapped_column(Text, nullable=False)
     # NN = NIVEL TERRITORIAL NOME
@@ -133,8 +134,7 @@ class Dados(Base):
         sa.Index("ix_dados_periodo", "sidra_tabela_id", "d3c"),
         UniqueConstraint(
             "sidra_tabela_id",
-            "nc",
-            "d1c",
+            "localidade_id",
             "dimensao_id",
             "d3c",
             name="uq_dados",
@@ -158,10 +158,12 @@ class Dados(Base):
         index=True,
     )
     dimensao = relationship("Dimensao", back_populates="dados")
-    # NC = NIVEL TERRITORIAL ID
-    nc: Mapped[str] = mapped_column(Text, nullable=False)
-    # D1C = UNIDADE TERRITORIAL ID
-    d1c: Mapped[str] = mapped_column(Text, nullable=False)
+    localidade_id: Mapped[int] = mapped_column(
+        ForeignKey("localidade.id"),
+        nullable=False,
+        index=True,
+    )
+    localidade = relationship("Localidade", back_populates="dados")
     # D3C = PERIODO ID
     d3c: Mapped[str] = mapped_column(Text, nullable=False)
     modificacao: Mapped[Date] = mapped_column(Date, nullable=False)
