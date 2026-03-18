@@ -1,8 +1,5 @@
 import unittest
 
-import pandas as pd
-import sqlalchemy as sa
-
 from ibge_sidra_tabelas import database
 
 
@@ -30,22 +27,6 @@ class TestDatabaseHelpers(unittest.TestCase):
         self.assertEqual(url.database, "db")
         # drivername should contain postgresql
         self.assertIn("postgresql", url.drivername)
-
-    def test_load_appends_to_table_using_sqlite(self):
-        # Use an in-memory SQLite engine to test df.to_sql behavior
-        engine = sa.create_engine("sqlite:///:memory:")
-        cfg = DummyConfig("u", "p", "h", 0, "db", "my_table")
-
-        df = pd.DataFrame({"a": [1, 2], "b": ["x", "y"]})
-
-        # Should not raise
-        database.load(df, engine, cfg)
-
-        # Verify table exists and contents match
-        result = pd.read_sql_table(cfg.db_table, con=engine)
-        # SQLite will have inserted the two rows
-        self.assertEqual(len(result), 2)
-        self.assertListEqual(list(result["a"]), [1, 2])
 
     def test_build_ddl_and_comment(self):
         cols = {"id": "BIGINT", "val": "TEXT"}

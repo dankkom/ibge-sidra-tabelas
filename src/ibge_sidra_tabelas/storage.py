@@ -10,7 +10,6 @@ import json
 import logging
 from pathlib import Path
 
-import pandas as pd
 from sidra_fetcher.agregados import Agregado
 from sidra_fetcher.reader import load_agregado, save_agregado
 from sidra_fetcher.sidra import Parametro
@@ -107,19 +106,27 @@ class Storage:
             json.dump(data, f)
         return filepath
 
-    def read_data(self, filepath: Path) -> pd.DataFrame:
+    def read_data(self, filepath: Path) -> list[dict]:
         """Read a JSON file previously written by `write`.
 
         Args:
             filepath: Path to the JSON file to read.
 
         Returns:
-            A `pandas.DataFrame` containing the table data.
+            A list of dicts containing the table data.
         """
         logger.info("Reading file %s", filepath)
-        df = pd.read_json(filepath, orient="records")
-        df = df.drop(index=0)
-        return df.replace(["...", "-"], pd.NA)
+        with filepath.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        
+        if len(data) > 1:
+            rows = data[1:]
+            for row in rows:
+                for k, v in row.items():
+                    if v in ("...", "-"):
+                        row[k] = None
+            return rows
+        return []
 
     def write_metadata(self, agregado: Agregado) -> Path:
         """Write *agregado* metadata to disk as JSON and return the destination path."""
@@ -135,8 +142,8 @@ class Storage:
         agregado = load_agregado(filepath)
         return agregado
 
-    def read_data_dir(self, dirpath: Path) -> pd.DataFrame:
-        df = pd.DataFrame()
+    def read_data_dir(self, dirpath: Path) -> list[dict]:
+        data = []
         for f in dirpath.glob("*.json"):
-            df = pd.concat((df, self.read_data(f)), ignore_index=True)
-        return df
+            data.extend(self.read_data(f))
+        return data

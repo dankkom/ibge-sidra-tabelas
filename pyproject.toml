@@ -11,7 +11,6 @@ requires-python = ">=3.13"
 
 dependencies = [
     "sidra-fetcher @ git+ssh://git@github.com/dankkom/sidra-fetcher.git@main#egg=sidra-fetcher",
-    "pandas>=2.3.0",
     "psycopg[binary]>=3.2.9",
     "sqlalchemy>=2.0.41",
 ]

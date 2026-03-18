@@ -13,10 +13,10 @@ the abstract method `get_tabelas`.
 """
 
 import logging
+import re
 from abc import ABC, abstractmethod
 from typing import Any, Iterable
 
-import pandas as pd
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
@@ -190,26 +190,21 @@ class BaseScript(ABC):
             processed_tables.add(sidra_tabela_id)
             logger.info("Extracting MC from %s", filepath)
 
-            df = self.storage.read_data(filepath)
-            if df.empty or "MC" not in df.columns:
+            rows = self.storage.read_data(filepath)
+            if not rows or "MC" not in rows[0]:
                 continue
-
-            # Ensure dimension columns exist
-            for col in dim_cols:
-                if col not in df.columns:
-                    df[col] = None
 
             # Get unique (D2C, D4C-D9C, MC) combinations
             seen: set[tuple] = set()
             with engine.connect() as conn:
-                for _, row in df.iterrows():
+                for row in rows:
                     mc = row.get("MC")
-                    if pd.isna(mc):
+                    if mc is None:
                         continue
                     mc = str(mc)
 
                     key_vals = tuple(
-                        str(row[c]) if pd.notna(row.get(c)) else None
+                        str(row.get(c)) if row.get(c) is not None else None
                         for c in dim_cols
                     )
                     if key_vals in seen:
@@ -251,118 +246,109 @@ class BaseScript(ABC):
             modificacao = filepath.stem.split("@")[-1]
 
             logger.info("Reading file %s", filepath)
-            df = self.storage.read_data(filepath)
-            if df.empty:
+            rows = self.storage.read_data(filepath)
+            if not rows:
                 continue
 
             # Drop rows where V is missing
-            df = df.dropna(subset=["V"])
-            if df.empty:
+            rows = [r for r in rows if r.get("V") is not None]
+            if not rows:
                 continue
+
+            def clean_str(val):
+                if val is None:
+                    return ""
+                return re.sub(r'\.0$', '', str(val).strip())
+                
+            seen_locs = set()
+            loc_dicts = []
+            loc_keys_list = []
+            
+            for r in rows:
+                nc = clean_str(r.get("NC"))
+                nn = str(r.get("NN", "")).strip()
+                d1c = clean_str(r.get("D1C"))
+                d1n = str(r.get("D1N", "")).strip()
+                
+                loc_keys_list.append((nc, d1c))
+
+                if (nc, d1c) not in seen_locs:
+                    seen_locs.add((nc, d1c))
+                    loc_dicts.append({
+                        "nc": nc,
+                        "nn": nn,
+                        "d1c": d1c,
+                        "d1n": d1n,
+                    })
 
             # Upsert Localidades found in this data file dynamically
-            for missing_col in ["NN", "D1N"]:
-                if missing_col not in df.columns:
-                    df[missing_col] = ""
-            locs = df[["NC", "NN", "D1C", "D1N"]].drop_duplicates().copy()
-            locs = locs.rename(columns={"NC": "nc", "NN": "nn", "D1C": "d1c", "D1N": "d1n"})
-
-            locs["nc"] = locs["nc"].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
-            locs["nn"] = locs["nn"].astype(str).str.strip()
-            locs["d1c"] = locs["d1c"].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
-            locs["d1n"] = locs["d1n"].astype(str).str.strip()
-
-            locs.to_sql(
-                "localidade",
-                engine,
-                schema=self.config.db_schema,
-                if_exists="append",
-                index=False,
-                method=database.insert_on_conflict_do_nothing,
-                chunksize=1000,
-            )
-
-            # Build localidade lookup key
-            df["_loc_key"] = list(
-                zip(
-                    df["NC"].astype(str).str.replace(r'\.0$', '', regex=True).str.strip(),
-                    df["D1C"].astype(str).str.replace(r'\.0$', '', regex=True).str.strip(),
-                )
-            )
+            with engine.connect() as conn:
+                for i in range(0, len(loc_dicts), 1000):
+                    batch = loc_dicts[i : i + 1000]
+                    stmt = pg_insert(models.Localidade.__table__).values(batch)
+                    stmt = stmt.on_conflict_do_nothing()
+                    conn.execute(stmt)
+                conn.commit()
 
             # Rebuild lookup so we have the IDs for newly inserted localidades (just for present keys)
-            loc_keys = set(df["_loc_key"])
-            loc_lookup = self._build_localidade_lookup(engine, keys=loc_keys)
+            loc_lookup = self._build_localidade_lookup(engine, keys=seen_locs)
 
-            # Ensure dimension columns exist (fill missing with None)
-            for col in dim_cols:
-                if col not in df.columns:
-                    df[col] = None
-
-            # Build dimension lookup key for each row
-            def _make_key(row):
-                return tuple(
-                    str(row[c]) if pd.notna(row[c]) else None
+            dim_keys_list = []
+            seen_dims = set()
+            for r in rows:
+                key = tuple(
+                    str(r.get(c)) if r.get(c) is not None else None
                     for c in dim_cols
                 )
+                dim_keys_list.append(key)
+                seen_dims.add(key)
+                
+            dim_lookup = self._build_dimensao_lookup(engine, keys=seen_dims)
 
-            df["_dim_key"] = df.apply(_make_key, axis=1)
-            dim_keys = set(df["_dim_key"])
-            dim_lookup = self._build_dimensao_lookup(engine, keys=dim_keys)
-            
-            df["dimensao_id"] = df["_dim_key"].map(dim_lookup)
+            dados_to_insert = []
+            missing_dims = 0
+            missing_locs = 0
 
-            # Skip rows with unknown dimensao
-            missing = df["dimensao_id"].isna()
-            if missing.any():
-                logger.warning(
-                    "Skipping %d rows with unknown dimensao in %s",
-                    missing.sum(),
-                    filepath,
-                )
-                df = df[~missing]
+            for i, r in enumerate(rows):
+                dim_key = dim_keys_list[i]
+                loc_key = loc_keys_list[i]
+                
+                dim_id = dim_lookup.get(dim_key)
+                if dim_id is None:
+                    missing_dims += 1
+                    continue
+                    
+                loc_id = loc_lookup.get(loc_key)
+                if loc_id is None:
+                    missing_locs += 1
+                    continue
 
-            if df.empty:
-                continue
-
-            df["localidade_id"] = df["_loc_key"].map(loc_lookup)
-
-            # Skip rows with unknown localidade
-            missing_loc = df["localidade_id"].isna()
-            if missing_loc.any():
-                logger.warning(
-                    "Skipping %d rows with unknown localidade in %s",
-                    missing_loc.sum(),
-                    filepath,
-                )
-                df = df[~missing_loc]
-
-            if df.empty:
-                continue
-
-            # Build dados DataFrame
-            dados_df = pd.DataFrame(
-                {
+                dados_to_insert.append({
                     "sidra_tabela_id": sidra_tabela_id,
-                    "localidade_id": df["localidade_id"].astype(int),
-                    "dimensao_id": df["dimensao_id"].astype(int),
-                    "d3c": df["D3C"].astype(str),
+                    "localidade_id": loc_id,
+                    "dimensao_id": dim_id,
+                    "d3c": str(r.get("D3C")),
                     "modificacao": modificacao,
                     "ativo": True,
-                    "v": df["V"].astype(str),
-                }
-            )
+                    "v": str(r.get("V")),
+                })
 
-            logger.info("Loading %d rows into dados", len(dados_df))
-            dados_df.to_sql(
-                "dados",
-                engine,
-                schema=self.config.db_schema,
-                if_exists="append",
-                index=False,
-                method=database.insert_on_conflict_do_nothing,
-                chunksize=1000,
-            )
+            if missing_dims > 0:
+                logger.warning("Skipping %d rows with unknown dimensao in %s", missing_dims, filepath)
+            if missing_locs > 0:
+                logger.warning("Skipping %d rows with unknown localidade in %s", missing_locs, filepath)
+
+            if not dados_to_insert:
+                continue
+
+            logger.info("Loading %d rows into dados", len(dados_to_insert))
+            with engine.connect() as conn:
+                for i in range(0, len(dados_to_insert), 1000):
+                    batch = dados_to_insert[i : i + 1000]
+                    stmt = pg_insert(models.Dados.__table__).values(batch)
+                    stmt = stmt.on_conflict_do_nothing()
+                    conn.execute(stmt)
+                conn.commit()
 
     def run(self):
         """Execute the complete fetch-and-load pipeline.

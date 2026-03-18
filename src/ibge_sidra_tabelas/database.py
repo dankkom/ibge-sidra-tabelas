@@ -17,7 +17,6 @@ import json
 import logging
 from typing import Iterable
 
-import pandas as pd
 import sqlalchemy as sa
 import sqlalchemy.exc
 from sidra_fetcher.agregados import Agregado
@@ -57,59 +56,6 @@ def get_engine(config: Config) -> sa.engine.Engine:
         connect_args={"options": f"-c search_path={db_schema}"},
     )
     return engine
-
-
-def insert_on_conflict_do_nothing(pd_table, conn, keys, data_iter):
-    """Pandas to_sql method that performs an INSERT ON CONFLICT DO NOTHING.
-
-    This is useful for bulk loading where some keys might already exist.
-    """
-    data = [dict(zip(keys, row)) for row in data_iter]
-    if not data:
-        return
-
-    columns = [sa.Column(k) for k in keys]
-    table = sa.Table(
-        pd_table.name,
-        sa.MetaData(),
-        *columns,
-        schema=pd_table.schema,
-    )
-
-    stmt = pg_insert(table).values(data)
-    stmt = stmt.on_conflict_do_nothing()
-
-    conn.execute(stmt)
-
-
-def load(df: pd.DataFrame, engine: sa.engine.Engine, config: Config):
-    """Append a DataFrame to the configured database table.
-
-    This convenience wrapper logs the operation and calls
-    ``pandas.DataFrame.to_sql`` with sensible defaults. Integrity errors
-    (for example due to primary key violations) are caught and logged as
-    warnings so that callers can continue processing other files.
-
-    Args:
-        df: DataFrame to be loaded.
-        engine: SQLAlchemy engine connected to the target DB.
-        config: Configuration with ``db_table`` and ``db_schema``.
-    """
-    logger.info("Loading data into %s table", config.db_table)
-    try:
-        df.to_sql(
-            config.db_table,
-            engine,
-            schema=config.db_schema,
-            if_exists="append",
-            index=False,
-            chunksize=1_000,
-        )
-    except sqlalchemy.exc.IntegrityError:
-        logger.warning(
-            "Integrity error: failed to load data into %s table",
-            config.db_table,
-        )
 
 
 def build_ddl(
