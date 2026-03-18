@@ -30,8 +30,6 @@ class SidraTabela(Base):
         onupdate=func.now(),
     )
     metadados: Mapped[JSONB] = mapped_column(JSONB, nullable=True)
-    localidades = relationship("Localidade", back_populates="sidra_tabela")
-    dimensoes = relationship("Dimensao", back_populates="sidra_tabela")
     dados = relationship("Dados", back_populates="sidra_tabela")
 
 
@@ -39,7 +37,7 @@ class Localidade(Base):
     __tablename__ = "localidade"
     __table_args__ = (
         UniqueConstraint(
-            "sidra_tabela_id", "nc", "d1c", name="uq_localidade"
+            "nc", "d1c", name="uq_localidade"
         ),
     )
 
@@ -48,12 +46,6 @@ class Localidade(Base):
         Identity(always=True),
         primary_key=True,
     )
-    sidra_tabela_id: Mapped[str] = mapped_column(
-        ForeignKey("sidra_tabela.id"),
-        nullable=False,
-        index=True,
-    )
-    sidra_tabela = relationship("SidraTabela", back_populates="localidades")
     dados = relationship("Dados", back_populates="localidade")
     # NC = NIVEL TERRITORIAL ID
     nc: Mapped[str] = mapped_column(Text, nullable=False)
@@ -69,7 +61,6 @@ class Dimensao(Base):
     __tablename__ = "dimensao"
     __table_args__ = (
         UniqueConstraint(
-            "sidra_tabela_id",
             "mc",
             "d2c",
             "d4c",
@@ -87,12 +78,6 @@ class Dimensao(Base):
         Identity(always=True),
         primary_key=True,
     )
-    sidra_tabela_id: Mapped[str] = mapped_column(
-        ForeignKey("sidra_tabela.id"),
-        nullable=False,
-        index=True,
-    )
-    sidra_tabela = relationship("SidraTabela", back_populates="dimensoes")
     dados = relationship("Dados", back_populates="dimensao")
     # MC = UNIDADE ID
     mc: Mapped[str] = mapped_column(Text, nullable=True)

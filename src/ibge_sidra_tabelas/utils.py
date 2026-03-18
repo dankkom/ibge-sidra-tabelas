@@ -9,7 +9,6 @@ from sidra_fetcher.agregados import (
 
 
 def unnest_dimensoes(
-    agregado_id: int,
     variaveis: list[Variavel],
     classificacoes: list[Classificacao],
 ) -> Iterable[dict]:
@@ -23,7 +22,6 @@ def unnest_dimensoes(
     2. The variable's ``unidade`` field as a fallback.
 
     Args:
-        agregado_id: Primary key of the parent ``SidraTabela`` row.
         variaveis: Iterable of :class:`~sidra_fetcher.agregados.Variavel`.
         classificacoes: Iterable of
             :class:`~sidra_fetcher.agregados.Classificacao`.
@@ -51,7 +49,6 @@ def unnest_dimensoes(
         if not cats_per_classificacao:
             # No classifications: yield one row per variable with null d4–d9.
             yield dict(
-                sidra_tabela_id=str(agregado_id),
                 mc=unidade_id,
                 mn=unidade_nome,
                 d2c=variavel_id,
@@ -90,7 +87,6 @@ def unnest_dimensoes(
                 return cat.nome if cat is not None else None
 
             yield dict(
-                sidra_tabela_id=str(agregado_id),
                 mc=unidade_id,
                 mn=unidade_nome,
                 d2c=variavel_id,

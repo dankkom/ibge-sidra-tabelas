@@ -96,7 +96,7 @@ class BaseScript(ABC):
             database.save_agregado(engine, agregado)
 
     def _build_localidade_lookup(
-        self, engine: sa.Engine, sidra_tabela_id: str
+        self, engine: sa.Engine
     ) -> dict[tuple, int]:
         """Build a lookup dict from localidade columns to localidade ID."""
         with engine.connect() as conn:
@@ -105,8 +105,6 @@ class BaseScript(ABC):
                     models.Localidade.id,
                     models.Localidade.nc,
                     models.Localidade.d1c,
-                ).where(
-                    models.Localidade.sidra_tabela_id == sidra_tabela_id
                 )
             )
             lookup = {}
@@ -116,7 +114,7 @@ class BaseScript(ABC):
             return lookup
 
     def _build_dimensao_lookup(
-        self, engine: sa.Engine, sidra_tabela_id: str
+        self, engine: sa.Engine
     ) -> dict[tuple, int]:
         """Build a lookup dict from dimension columns to dimensao ID."""
         with engine.connect() as conn:
@@ -130,8 +128,6 @@ class BaseScript(ABC):
                     models.Dimensao.d7c,
                     models.Dimensao.d8c,
                     models.Dimensao.d9c,
-                ).where(
-                    models.Dimensao.sidra_tabela_id == sidra_tabela_id
                 )
             )
             lookup = {}
@@ -195,9 +191,7 @@ class BaseScript(ABC):
                     seen.add(key_vals)
 
                     # Build WHERE clause for matching dimensao row
-                    conditions = [
-                        models.Dimensao.sidra_tabela_id == sidra_tabela_id,
-                    ]
+                    conditions = []
                     for col_name, val in zip(dim_cols, key_vals):
                         col = getattr(models.Dimensao, col_name.lower())
                         if val is None:
@@ -221,19 +215,16 @@ class BaseScript(ABC):
 
     def load_data(self, engine: sa.Engine, data_files: list[dict[str, Any]]):
         """Load downloaded data files into the dados table."""
-        dimensao_lookups: dict[str, dict[tuple, int]] = {}
-        localidade_lookups: dict[str, dict[tuple, int]] = {}
         dim_cols = ["D2C", "D4C", "D5C", "D6C", "D7C", "D8C", "D9C"]
+
+        # Load global localidade lookup
+        loc_lookup = self._build_localidade_lookup(engine)
+        # Load global dimensao lookup
+        dim_lookup = self._build_dimensao_lookup(engine)
 
         for data_file in data_files:
             sidra_tabela_id = str(data_file["sidra_tabela"])
             filepath = data_file["filepath"]
-
-            if sidra_tabela_id not in dimensao_lookups:
-                dimensao_lookups[sidra_tabela_id] = (
-                    self._build_dimensao_lookup(engine, sidra_tabela_id)
-                )
-            lookup = dimensao_lookups[sidra_tabela_id]
 
             # Extract modification date from filename (after @ before .json)
             modificacao = filepath.stem.split("@")[-1]
@@ -254,7 +245,7 @@ class BaseScript(ABC):
                     df[missing_col] = ""
             locs = df[["NC", "NN", "D1C", "D1N"]].drop_duplicates().copy()
             locs = locs.rename(columns={"NC": "nc", "NN": "nn", "D1C": "d1c", "D1N": "d1n"})
-            locs["sidra_tabela_id"] = sidra_tabela_id
+
             locs["nc"] = locs["nc"].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
             locs["nn"] = locs["nn"].astype(str).str.strip()
             locs["d1c"] = locs["d1c"].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
@@ -271,10 +262,7 @@ class BaseScript(ABC):
             )
 
             # Rebuild lookup so we have the IDs for newly inserted localidades
-            localidade_lookups[sidra_tabela_id] = self._build_localidade_lookup(
-                engine, sidra_tabela_id
-            )
-            loc_lookup = localidade_lookups[sidra_tabela_id]
+            loc_lookup = self._build_localidade_lookup(engine)
 
             # Ensure dimension columns exist (fill missing with None)
             for col in dim_cols:
@@ -289,7 +277,7 @@ class BaseScript(ABC):
                 )
 
             df["_dim_key"] = df.apply(_make_key, axis=1)
-            df["dimensao_id"] = df["_dim_key"].map(lookup)
+            df["dimensao_id"] = df["_dim_key"].map(dim_lookup)
 
             # Skip rows with unknown dimensao
             missing = df["dimensao_id"].isna()

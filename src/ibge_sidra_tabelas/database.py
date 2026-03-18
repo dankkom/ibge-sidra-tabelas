@@ -212,7 +212,6 @@ def save_agregado(engine: sa.engine.Engine, agregado: Agregado):
 
     localidades_iter = (
         dict(
-            sidra_tabela_id=str(agregado.id),
             nc=str(localidade.nivel.id),
             nn=localidade.nivel.nome,
             d1c=str(localidade.id),
@@ -232,7 +231,6 @@ def save_agregado(engine: sa.engine.Engine, agregado: Agregado):
             conn.commit()
 
     dimensoes_iter = unnest_dimensoes(
-        agregado_id=agregado.id,
         variaveis=agregado.variaveis,
         classificacoes=agregado.classificacoes,
     )
