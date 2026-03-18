@@ -139,22 +139,12 @@ class BaseScript(ABC):
                 models.Dimensao.d9c,
             )
             if keys is not None:
-                keys = list(keys)
-                if not keys:
+                d2c_keys = list({k[0] for k in keys if k is not None and k[0] is not None})
+                if not d2c_keys:
                     return lookup
-                for i in range(0, len(keys), 1000):
-                    chunk = keys[i : i + 1000]
-                    chunk_stmt = stmt.where(
-                        sa.tuple_(
-                            models.Dimensao.d2c,
-                            models.Dimensao.d4c,
-                            models.Dimensao.d5c,
-                            models.Dimensao.d6c,
-                            models.Dimensao.d7c,
-                            models.Dimensao.d8c,
-                            models.Dimensao.d9c,
-                        ).in_(chunk)
-                    )
+                for i in range(0, len(d2c_keys), 1000):
+                    chunk = d2c_keys[i : i + 1000]
+                    chunk_stmt = stmt.where(models.Dimensao.d2c.in_(chunk))
                     for row in conn.execute(chunk_stmt):
                         key = (
                             row.d2c,
