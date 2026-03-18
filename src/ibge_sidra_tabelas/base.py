@@ -96,52 +96,88 @@ class BaseScript(ABC):
             database.save_agregado(engine, agregado)
 
     def _build_localidade_lookup(
-        self, engine: sa.Engine
+        self, engine: sa.Engine, keys: Iterable[tuple] | None = None
     ) -> dict[tuple, int]:
         """Build a lookup dict from localidade columns to localidade ID."""
+        lookup = {}
         with engine.connect() as conn:
-            result = conn.execute(
-                sa.select(
-                    models.Localidade.id,
-                    models.Localidade.nc,
-                    models.Localidade.d1c,
-                )
+            stmt = sa.select(
+                models.Localidade.id,
+                models.Localidade.nc,
+                models.Localidade.d1c,
             )
-            lookup = {}
-            for row in result:
-                key = (row.nc, row.d1c)
-                lookup[key] = row.id
+            if keys is not None:
+                keys = list(keys)
+                if not keys:
+                    return lookup
+                for i in range(0, len(keys), 1000):
+                    chunk = keys[i : i + 1000]
+                    chunk_stmt = stmt.where(
+                        sa.tuple_(models.Localidade.nc, models.Localidade.d1c).in_(chunk)
+                    )
+                    for row in conn.execute(chunk_stmt):
+                        lookup[(row.nc, row.d1c)] = row.id
+            else:
+                for row in conn.execute(stmt):
+                    lookup[(row.nc, row.d1c)] = row.id
             return lookup
 
     def _build_dimensao_lookup(
-        self, engine: sa.Engine
+        self, engine: sa.Engine, keys: Iterable[tuple] | None = None
     ) -> dict[tuple, int]:
         """Build a lookup dict from dimension columns to dimensao ID."""
+        lookup = {}
         with engine.connect() as conn:
-            result = conn.execute(
-                sa.select(
-                    models.Dimensao.id,
-                    models.Dimensao.d2c,
-                    models.Dimensao.d4c,
-                    models.Dimensao.d5c,
-                    models.Dimensao.d6c,
-                    models.Dimensao.d7c,
-                    models.Dimensao.d8c,
-                    models.Dimensao.d9c,
-                )
+            stmt = sa.select(
+                models.Dimensao.id,
+                models.Dimensao.d2c,
+                models.Dimensao.d4c,
+                models.Dimensao.d5c,
+                models.Dimensao.d6c,
+                models.Dimensao.d7c,
+                models.Dimensao.d8c,
+                models.Dimensao.d9c,
             )
-            lookup = {}
-            for row in result:
-                key = (
-                    row.d2c,
-                    row.d4c,
-                    row.d5c,
-                    row.d6c,
-                    row.d7c,
-                    row.d8c,
-                    row.d9c,
-                )
-                lookup[key] = row.id
+            if keys is not None:
+                keys = list(keys)
+                if not keys:
+                    return lookup
+                for i in range(0, len(keys), 1000):
+                    chunk = keys[i : i + 1000]
+                    chunk_stmt = stmt.where(
+                        sa.tuple_(
+                            models.Dimensao.d2c,
+                            models.Dimensao.d4c,
+                            models.Dimensao.d5c,
+                            models.Dimensao.d6c,
+                            models.Dimensao.d7c,
+                            models.Dimensao.d8c,
+                            models.Dimensao.d9c,
+                        ).in_(chunk)
+                    )
+                    for row in conn.execute(chunk_stmt):
+                        key = (
+                            row.d2c,
+                            row.d4c,
+                            row.d5c,
+                            row.d6c,
+                            row.d7c,
+                            row.d8c,
+                            row.d9c,
+                        )
+                        lookup[key] = row.id
+            else:
+                for row in conn.execute(stmt):
+                    key = (
+                        row.d2c,
+                        row.d4c,
+                        row.d5c,
+                        row.d6c,
+                        row.d7c,
+                        row.d8c,
+                        row.d9c,
+                    )
+                    lookup[key] = row.id
             return lookup
 
     def _update_dimensao_mc(
@@ -217,11 +253,6 @@ class BaseScript(ABC):
         """Load downloaded data files into the dados table."""
         dim_cols = ["D2C", "D4C", "D5C", "D6C", "D7C", "D8C", "D9C"]
 
-        # Load global localidade lookup
-        loc_lookup = self._build_localidade_lookup(engine)
-        # Load global dimensao lookup
-        dim_lookup = self._build_dimensao_lookup(engine)
-
         for data_file in data_files:
             sidra_tabela_id = str(data_file["sidra_tabela"])
             filepath = data_file["filepath"]
@@ -261,8 +292,17 @@ class BaseScript(ABC):
                 chunksize=1000,
             )
 
-            # Rebuild lookup so we have the IDs for newly inserted localidades
-            loc_lookup = self._build_localidade_lookup(engine)
+            # Build localidade lookup key
+            df["_loc_key"] = list(
+                zip(
+                    df["NC"].astype(str).str.replace(r'\.0$', '', regex=True).str.strip(),
+                    df["D1C"].astype(str).str.replace(r'\.0$', '', regex=True).str.strip(),
+                )
+            )
+
+            # Rebuild lookup so we have the IDs for newly inserted localidades (just for present keys)
+            loc_keys = set(df["_loc_key"])
+            loc_lookup = self._build_localidade_lookup(engine, keys=loc_keys)
 
             # Ensure dimension columns exist (fill missing with None)
             for col in dim_cols:
@@ -277,6 +317,9 @@ class BaseScript(ABC):
                 )
 
             df["_dim_key"] = df.apply(_make_key, axis=1)
+            dim_keys = set(df["_dim_key"])
+            dim_lookup = self._build_dimensao_lookup(engine, keys=dim_keys)
+            
             df["dimensao_id"] = df["_dim_key"].map(dim_lookup)
 
             # Skip rows with unknown dimensao
@@ -292,13 +335,6 @@ class BaseScript(ABC):
             if df.empty:
                 continue
 
-            # Build localidade lookup key
-            df["_loc_key"] = list(
-                zip(
-                    df["NC"].astype(str).str.replace(r'\.0$', '', regex=True).str.strip(),
-                    df["D1C"].astype(str).str.replace(r'\.0$', '', regex=True).str.strip(),
-                )
-            )
             df["localidade_id"] = df["_loc_key"].map(loc_lookup)
 
             # Skip rows with unknown localidade
