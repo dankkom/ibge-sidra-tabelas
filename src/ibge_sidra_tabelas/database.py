@@ -13,6 +13,7 @@ Public functions:
 """
 
 import itertools
+import json
 import logging
 from typing import Iterable
 
@@ -197,7 +198,7 @@ def save_agregado(engine: sa.engine.Engine, agregado: Agregado):
         id=str(agregado.id),
         nome=agregado.nome,
         periodicidade=agregado.periodicidade.frequencia,
-        metadados=agregado.asdict(),
+        metadados=json.loads(json.dumps(agregado.asdict(), default=str)),
     )
     # Upsert SidraTabela (update metadados on conflict)
     with engine.connect() as conn:
