@@ -244,7 +244,6 @@ class BaseScript(ABC):
             # Extract modification date from filename (after @ before .json)
             modificacao = filepath.stem.split("@")[-1]
 
-            logger.info("Reading file %s", filepath)
             rows = self.storage.read_data(filepath)
             if not rows:
                 continue
