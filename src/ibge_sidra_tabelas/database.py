@@ -22,10 +22,9 @@ import sqlalchemy.exc
 from sidra_fetcher.agregados import Agregado
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from ibge_sidra_tabelas.models import Dimensao, Localidade, SidraTabela
+from ibge_sidra_tabelas.models import Localidade, SidraTabela
 
 from .config import Config
-from .utils import unnest_dimensoes
 
 logger = logging.getLogger(__name__)
 
@@ -176,17 +175,3 @@ def save_agregado(engine: sa.engine.Engine, agregado: Agregado):
             conn.execute(stmt)
             conn.commit()
 
-    dimensoes_iter = unnest_dimensoes(
-        variaveis=agregado.variaveis,
-        classificacoes=agregado.classificacoes,
-    )
-    # Insert Dimensao in batches (skip duplicates)
-    with engine.connect() as conn:
-        while True:
-            batch = list(itertools.islice(dimensoes_iter, 1000))
-            if not batch:
-                break
-            stmt = pg_insert(Dimensao.__table__).values(batch)
-            stmt = stmt.on_conflict_do_nothing()
-            conn.execute(stmt)
-            conn.commit()

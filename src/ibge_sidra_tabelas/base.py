@@ -170,69 +170,68 @@ class BaseScript(ABC):
                     lookup[key] = row.id
             return lookup
 
-    def _update_dimensao_mc(
+    def _upsert_dimensoes_from_data(
         self, engine: sa.Engine, data_files: list[dict[str, Any]]
     ):
-        """Extract MC (unit code) from Formato.A files and update dimensao."""
-        dim_cols = ["D2C", "D4C", "D5C", "D6C", "D7C", "D8C", "D9C"]
-        processed_tables = set()
+        """Insert dimensions from Formato.A data files into the dimensao table.
+
+        Formato.A files carry both codes and names (MC, MN, D2C, D2N, etc.),
+        so they are the only source that provides all required columns.
+        Only dimensions present in the downloaded data are inserted.
+        """
+        key_cols = ["MC", "D2C", "D4C", "D5C", "D6C", "D7C", "D8C", "D9C"]
+        name_cols = ["MN", "D2N", "D4N", "D5N", "D6N", "D7N", "D8N", "D9N"]
 
         for data_file in data_files:
-            sidra_tabela_id = str(data_file["sidra_tabela"])
-            if sidra_tabela_id in processed_tables:
-                continue
-
             filepath = data_file["filepath"]
-            # Only process Formato.A files
             if "_f-a_" not in filepath.name:
                 continue
 
-            processed_tables.add(sidra_tabela_id)
-            logger.info("Extracting MC from %s", filepath)
-
+            logger.info("Upserting dimensions from %s", filepath)
             rows = self.storage.read_data(filepath)
-            if not rows or "MC" not in rows[0]:
+            if not rows:
                 continue
 
-            # Get unique (D2C, D4C-D9C, MC) combinations
             seen: set[tuple] = set()
+            dim_dicts = []
+            for row in rows:
+                key = tuple(
+                    str(row[c]) if row.get(c) is not None else None
+                    for c in key_cols
+                )
+                if key in seen:
+                    continue
+                seen.add(key)
+
+                def _s(col):
+                    v = row.get(col)
+                    return str(v) if v is not None else None
+
+                dim_dicts.append({
+                    "mc": _s("MC"),
+                    "mn": _s("MN") or "",
+                    "d2c": _s("D2C") or "",
+                    "d2n": _s("D2N") or "",
+                    "d4c": _s("D4C"), "d4n": _s("D4N"),
+                    "d5c": _s("D5C"), "d5n": _s("D5N"),
+                    "d6c": _s("D6C"), "d6n": _s("D6N"),
+                    "d7c": _s("D7C"), "d7n": _s("D7N"),
+                    "d8c": _s("D8C"), "d8n": _s("D8N"),
+                    "d9c": _s("D9C"), "d9n": _s("D9N"),
+                })
+
+            if not dim_dicts:
+                continue
+
             with engine.connect() as conn:
-                for row in rows:
-                    mc = row.get("MC")
-                    if mc is None:
-                        continue
-                    mc = str(mc)
-
-                    key_vals = tuple(
-                        str(row.get(c)) if row.get(c) is not None else None
-                        for c in dim_cols
-                    )
-                    if key_vals in seen:
-                        continue
-                    seen.add(key_vals)
-
-                    # Build WHERE clause for matching dimensao row
-                    conditions = []
-                    for col_name, val in zip(dim_cols, key_vals):
-                        col = getattr(models.Dimensao, col_name.lower())
-                        if val is None:
-                            conditions.append(col.is_(None))
-                        else:
-                            conditions.append(col == val)
-
-                    stmt = (
-                        sa.update(models.Dimensao)
-                        .where(*conditions)
-                        .values(mc=mc)
-                    )
+                for i in range(0, len(dim_dicts), 1000):
+                    batch = dim_dicts[i : i + 1000]
+                    stmt = pg_insert(models.Dimensao.__table__).values(batch)
+                    stmt = stmt.on_conflict_do_nothing()
                     conn.execute(stmt)
                 conn.commit()
 
-            logger.info(
-                "Updated MC for %d dimension combinations in table %s",
-                len(seen),
-                sidra_tabela_id,
-            )
+            logger.info("Upserted %d dimensions from %s", len(dim_dicts), filepath)
 
     def load_data(self, engine: sa.Engine, data_files: list[dict[str, Any]]):
         """Load downloaded data files into the dados table."""
@@ -370,6 +369,6 @@ class BaseScript(ABC):
             self.load_metadata(engine, tabelas)
             data_files = self.download(tabelas)
 
-        self._update_dimensao_mc(engine, data_files)
+        self._upsert_dimensoes_from_data(engine, data_files)
         self.load_data(engine, data_files)
         logger.info("Script execution finished")
