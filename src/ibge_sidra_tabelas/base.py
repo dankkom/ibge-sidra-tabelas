@@ -173,19 +173,17 @@ class BaseScript(ABC):
     def _upsert_dimensoes_from_data(
         self, engine: sa.Engine, data_files: list[dict[str, Any]]
     ):
-        """Insert dimensions from Formato.A data files into the dimensao table.
+        """Insert dimensions from data files into the dimensao table.
 
-        Formato.A files carry both codes and names (MC, MN, D2C, D2N, etc.),
-        so they are the only source that provides all required columns.
-        Only dimensions present in the downloaded data are inserted.
+        All data files are in Formato.A and carry both codes and names
+        (MC, MN, D2C, D2N, etc.). Only dimensions present in the downloaded
+        data are inserted.
         """
         key_cols = ["MC", "D2C", "D4C", "D5C", "D6C", "D7C", "D8C", "D9C"]
         name_cols = ["MN", "D2N", "D4N", "D5N", "D6N", "D7N", "D8N", "D9N"]
 
         for data_file in data_files:
             filepath = data_file["filepath"]
-            if "_f-a_" not in filepath.name:
-                continue
 
             logger.info("Upserting dimensions from %s", filepath)
             rows = self.storage.read_data(filepath)
@@ -257,17 +255,17 @@ class BaseScript(ABC):
                 if val is None:
                     return ""
                 return re.sub(r'\.0$', '', str(val).strip())
-                
+
             seen_locs = set()
             loc_dicts = []
             loc_keys_list = []
-            
+
             for r in rows:
                 nc = clean_str(r.get("NC"))
                 nn = str(r.get("NN", "")).strip()
                 d1c = clean_str(r.get("D1C"))
                 d1n = str(r.get("D1N", "")).strip()
-                
+
                 loc_keys_list.append((nc, d1c))
 
                 if (nc, d1c) not in seen_locs:

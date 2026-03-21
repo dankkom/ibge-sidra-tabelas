@@ -99,7 +99,7 @@ class Fetcher:
         )
 
         period_params: list[tuple[Parametro, str]] = []
-        for i, periodo in enumerate(periodos):
+        for periodo in periodos:
             parameter = Parametro(
                 agregado=sidra_tabela,
                 territorios=territories,
@@ -107,7 +107,7 @@ class Fetcher:
                 periodos=[periodo.id],
                 classificacoes=classifications,
                 decimais={"": Precisao.M},  # Precisão: Máxima
-                formato=Formato.A if i == 0 else Formato.C,
+                formato=Formato.A,
             )
             period_params.append((parameter, periodo.modificacao.isoformat()))
 
