@@ -113,67 +113,81 @@ def save_agregado(engine: sa.engine.Engine, agregado: Agregado):
 # Lookups
 # ---------------------------------------------------------------------------
 
+def _localidade_lookup_query(
+    conn: sa.Connection, keys: Iterable[tuple] | None = None
+) -> dict[tuple, int]:
+    """Return a mapping of (nc, d1c) -> localidade.id using an open connection."""
+    lookup: dict[tuple, int] = {}
+    stmt = sa.select(
+        models.Localidade.id,
+        models.Localidade.nc,
+        models.Localidade.d1c,
+    )
+    if keys is not None:
+        keys = list(keys)
+        if not keys:
+            return lookup
+        for i in range(0, len(keys), _BATCH_SIZE):
+            chunk_stmt = stmt.where(
+                sa.tuple_(models.Localidade.nc, models.Localidade.d1c).in_(
+                    keys[i : i + _BATCH_SIZE]
+                )
+            )
+            for row in conn.execute(chunk_stmt):
+                lookup[(row.nc, row.d1c)] = row.id
+    else:
+        for row in conn.execute(stmt):
+            lookup[(row.nc, row.d1c)] = row.id
+    return lookup
+
+
 def build_localidade_lookup(
     engine: sa.Engine, keys: Iterable[tuple] | None = None
 ) -> dict[tuple, int]:
-    """Return a mapping of (nc, d1c) → localidade.id."""
-    lookup: dict[tuple, int] = {}
+    """Return a mapping of (nc, d1c) -> localidade.id."""
     with engine.connect() as conn:
-        stmt = sa.select(
-            models.Localidade.id,
-            models.Localidade.nc,
-            models.Localidade.d1c,
+        return _localidade_lookup_query(conn, keys)
+
+
+def _dimensao_lookup_query(
+    conn: sa.Connection, keys: Iterable[tuple] | None = None
+) -> dict[tuple, int]:
+    """Return a mapping of (d2c, d4c...d9c) -> dimensao.id using an open connection."""
+    lookup: dict[tuple, int] = {}
+    stmt = sa.select(
+        models.Dimensao.id,
+        models.Dimensao.d2c,
+        models.Dimensao.d4c,
+        models.Dimensao.d5c,
+        models.Dimensao.d6c,
+        models.Dimensao.d7c,
+        models.Dimensao.d8c,
+        models.Dimensao.d9c,
+    )
+    if keys is not None:
+        d2c_keys = list(
+            {k[0] for k in keys if k is not None and k[0] is not None}
         )
-        if keys is not None:
-            keys = list(keys)
-            if not keys:
-                return lookup
-            for i in range(0, len(keys), _BATCH_SIZE):
-                chunk_stmt = stmt.where(
-                    sa.tuple_(models.Localidade.nc, models.Localidade.d1c).in_(
-                        keys[i : i + _BATCH_SIZE]
-                    )
-                )
-                for row in conn.execute(chunk_stmt):
-                    lookup[(row.nc, row.d1c)] = row.id
-        else:
-            for row in conn.execute(stmt):
-                lookup[(row.nc, row.d1c)] = row.id
+        if not d2c_keys:
+            return lookup
+        for i in range(0, len(d2c_keys), _BATCH_SIZE):
+            chunk_stmt = stmt.where(
+                models.Dimensao.d2c.in_(d2c_keys[i : i + _BATCH_SIZE])
+            )
+            for row in conn.execute(chunk_stmt):
+                lookup[(row.d2c, row.d4c, row.d5c, row.d6c, row.d7c, row.d8c, row.d9c)] = row.id
+    else:
+        for row in conn.execute(stmt):
+            lookup[(row.d2c, row.d4c, row.d5c, row.d6c, row.d7c, row.d8c, row.d9c)] = row.id
     return lookup
 
 
 def build_dimensao_lookup(
     engine: sa.Engine, keys: Iterable[tuple] | None = None
 ) -> dict[tuple, int]:
-    """Return a mapping of (d2c, d4c…d9c) → dimensao.id."""
-    lookup: dict[tuple, int] = {}
+    """Return a mapping of (d2c, d4c...d9c) -> dimensao.id."""
     with engine.connect() as conn:
-        stmt = sa.select(
-            models.Dimensao.id,
-            models.Dimensao.d2c,
-            models.Dimensao.d4c,
-            models.Dimensao.d5c,
-            models.Dimensao.d6c,
-            models.Dimensao.d7c,
-            models.Dimensao.d8c,
-            models.Dimensao.d9c,
-        )
-        if keys is not None:
-            d2c_keys = list(
-                {k[0] for k in keys if k is not None and k[0] is not None}
-            )
-            if not d2c_keys:
-                return lookup
-            for i in range(0, len(d2c_keys), _BATCH_SIZE):
-                chunk_stmt = stmt.where(
-                    models.Dimensao.d2c.in_(d2c_keys[i : i + _BATCH_SIZE])
-                )
-                for row in conn.execute(chunk_stmt):
-                    lookup[(row.d2c, row.d4c, row.d5c, row.d6c, row.d7c, row.d8c, row.d9c)] = row.id
-        else:
-            for row in conn.execute(stmt):
-                lookup[(row.d2c, row.d4c, row.d5c, row.d6c, row.d7c, row.d8c, row.d9c)] = row.id
-    return lookup
+        return _dimensao_lookup_query(conn, keys)
 
 
 # ---------------------------------------------------------------------------
@@ -212,48 +226,49 @@ def upsert_dimensoes(
 
         seen: set[tuple] = set()
         total = 0
-        for filepath in filepaths:
-            rows = storage.read_data(filepath)
-            dim_dicts = []
-            for row in rows:
-                if row.get("V") is None:
-                    continue
-                key = (
-                    _coerce(row.get("MC")),
-                    _coerce(row.get("D2C")),
-                    _coerce(row.get("D4C")),
-                    _coerce(row.get("D5C")),
-                    _coerce(row.get("D6C")),
-                    _coerce(row.get("D7C")),
-                    _coerce(row.get("D8C")),
-                    _coerce(row.get("D9C")),
-                )
-                if key in seen:
-                    continue
-                seen.add(key)
-                dim_dicts.append({
-                    "mc":  _coerce(row.get("MC")),
-                    "mn":  _coerce(row.get("MN")) or "",
-                    "d2c": _coerce(row.get("D2C")) or "",
-                    "d2n": _coerce(row.get("D2N")) or "",
-                    "d4c": _coerce(row.get("D4C")), "d4n": _coerce(row.get("D4N")),
-                    "d5c": _coerce(row.get("D5C")), "d5n": _coerce(row.get("D5N")),
-                    "d6c": _coerce(row.get("D6C")), "d6n": _coerce(row.get("D6N")),
-                    "d7c": _coerce(row.get("D7C")), "d7n": _coerce(row.get("D7N")),
-                    "d8c": _coerce(row.get("D8C")), "d8n": _coerce(row.get("D8N")),
-                    "d9c": _coerce(row.get("D9C")), "d9n": _coerce(row.get("D9N")),
-                })
-            del rows
+        with engine.connect() as conn:
+            for filepath in filepaths:
+                rows = storage.read_data(filepath)
+                dim_dicts = []
+                for row in rows:
+                    if row.get("V") is None:
+                        continue
+                    key = (
+                        _coerce(row.get("MC")),
+                        _coerce(row.get("D2C")),
+                        _coerce(row.get("D4C")),
+                        _coerce(row.get("D5C")),
+                        _coerce(row.get("D6C")),
+                        _coerce(row.get("D7C")),
+                        _coerce(row.get("D8C")),
+                        _coerce(row.get("D9C")),
+                    )
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    dim_dicts.append({
+                        "mc":  _coerce(row.get("MC")),
+                        "mn":  _coerce(row.get("MN")) or "",
+                        "d2c": _coerce(row.get("D2C")) or "",
+                        "d2n": _coerce(row.get("D2N")) or "",
+                        "d4c": _coerce(row.get("D4C")), "d4n": _coerce(row.get("D4N")),
+                        "d5c": _coerce(row.get("D5C")), "d5n": _coerce(row.get("D5N")),
+                        "d6c": _coerce(row.get("D6C")), "d6n": _coerce(row.get("D6N")),
+                        "d7c": _coerce(row.get("D7C")), "d7n": _coerce(row.get("D7N")),
+                        "d8c": _coerce(row.get("D8C")), "d8n": _coerce(row.get("D8N")),
+                        "d9c": _coerce(row.get("D9C")), "d9n": _coerce(row.get("D9N")),
+                    })
+                del rows
 
-            if not dim_dicts:
-                continue
+                if not dim_dicts:
+                    continue
 
-            with engine.connect() as conn:
                 for i in range(0, len(dim_dicts), _BATCH_SIZE):
                     stmt = pg_insert(models.Dimensao.__table__).values(dim_dicts[i : i + _BATCH_SIZE])
                     conn.execute(stmt.on_conflict_do_nothing())
-                conn.commit()
-            total += len(dim_dicts)
+                total += len(dim_dicts)
+
+            conn.commit()
 
         logger.info("Upserted %d dimensions for table %s", total, sidra_tabela_id)
 
@@ -321,23 +336,23 @@ def load_dados(
         if not processed:
             continue
 
-        # Upsert localidades once per table
+        # Single connection for upsert, lookups, and insert
         with engine.connect() as conn:
+            # Upsert localidades once per table
             for i in range(0, len(loc_dicts), _BATCH_SIZE):
                 stmt = pg_insert(models.Localidade.__table__).values(loc_dicts[i : i + _BATCH_SIZE])
                 conn.execute(stmt.on_conflict_do_nothing())
             conn.commit()
 
-        # Build lookups once per table (was once per file)
-        loc_lookup = build_localidade_lookup(engine, keys=seen_locs)
-        dim_lookup = build_dimensao_lookup(engine, keys=seen_dims)
+            # Build lookups once per table
+            loc_lookup = _localidade_lookup_query(conn, keys=seen_locs)
+            dim_lookup = _dimensao_lookup_query(conn, keys=seen_dims)
 
-        missing_dims = 0
-        missing_locs = 0
-        n_inserted = 0
-        batch: list[dict] = []
+            missing_dims = 0
+            missing_locs = 0
+            n_inserted = 0
+            batch: list[dict] = []
 
-        with engine.connect() as conn:
             for loc_key, dim_key, d3c, v, modificacao in processed:
                 dim_id = dim_lookup.get(dim_key)
                 if dim_id is None:
