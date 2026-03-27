@@ -30,7 +30,7 @@ class BaseScript(ABC):
     def __init__(self, config: Config, max_workers: int = 4):
         self.config = config
         self.storage = Storage.default(config)
-        self.fetcher = sidra.Fetcher(config, max_workers=max_workers)
+        self.fetcher = sidra.Fetcher(config, max_workers=max_workers, storage=self.storage)
 
     @abstractmethod
     def get_tabelas(self) -> Iterable[dict[str, Any]]:

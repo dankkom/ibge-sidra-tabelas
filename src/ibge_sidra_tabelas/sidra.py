@@ -60,9 +60,14 @@ class Fetcher:
         max_workers: Maximum number of concurrent period downloads.
     """
 
-    def __init__(self, config: Config, max_workers: int = 4):
+    def __init__(
+        self,
+        config: Config,
+        max_workers: int = 4,
+        storage: Storage | None = None,
+    ):
         self.sidra_client = SidraClient(timeout=600)
-        self.storage = Storage.default(config)
+        self.storage = storage if storage is not None else Storage.default(config)
         self.max_workers = max_workers
 
     def download_table(
