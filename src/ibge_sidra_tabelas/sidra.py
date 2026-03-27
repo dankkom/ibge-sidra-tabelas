@@ -28,6 +28,18 @@ from .storage import Storage
 
 logger = logging.getLogger(__name__)
 
+_MAX_RETRIES = 5
+_RETRY_BASE_DELAY = 5  # seconds; doubles on each attempt (5, 10, 20, 40, 80)
+
+# Transient network conditions that warrant a retry
+_TRANSIENT_ERRORS = (
+    httpx.ReadTimeout,
+    httpx.ConnectTimeout,
+    httpx.ConnectError,
+    httpx.RemoteProtocolError,
+    httpx.NetworkError,
+)
+
 
 class Fetcher:
     """Helper to download SIDRA tables and save them locally.
@@ -172,10 +184,9 @@ class Fetcher:
     def get_table(self, parameter: Parametro) -> dict:
         """Request a SIDRA table and return it as a dictionary.
 
-        This method calls the underlying `SidraClient` using the URL
-        produced by ``parameter.url()``. It retries on common transient
-        network errors (`httpx.ReadTimeout`, `httpx.RemoteProtocolError`),
-        sleeping briefly between attempts.
+        Retries up to `_MAX_RETRIES` times on transient network errors
+        using exponential backoff (5 s, 10 s, 20 s, …).  Raises the
+        underlying exception once all attempts are exhausted.
 
         Args:
             parameter: A `Parametro` instance with the desired request
@@ -185,18 +196,19 @@ class Fetcher:
             A `dict` constructed from the JSON response.
         """
         url = parameter.url()
-        while True:
+        for attempt in range(_MAX_RETRIES):
             try:
-                data = self.sidra_client.get(url)
-                return data
-            except httpx.ReadTimeout as e:
-                logger.error("Read timeout while fetching data: %s", e)
-                logger.info("Retrying in 5 seconds...")
-                time.sleep(5)
-            except httpx.RemoteProtocolError as e:
-                logger.error("Remote protocol error: %s", e)
-                logger.info("Retrying in 5 seconds...")
-                time.sleep(5)
+                return self.sidra_client.get(url)
+            except _TRANSIENT_ERRORS as e:
+                if attempt >= _MAX_RETRIES - 1:
+                    raise
+                delay = _RETRY_BASE_DELAY * (2 ** attempt)
+                logger.error("%s while fetching data: %s", type(e).__name__, e)
+                logger.info(
+                    "Retrying in %d s (attempt %d/%d)…",
+                    delay, attempt + 1, _MAX_RETRIES,
+                )
+                time.sleep(delay)
 
     def __enter__(self):
         """Enter the context manager and return this `Fetcher`.

@@ -52,23 +52,77 @@ class TestSidra(unittest.TestCase):
 
         fetcher.sidra_client = FakeClient()
 
-        # Create a minimal parameter-like object with a url() method
         class P:
             def url(self):
                 return "http://example"
 
-        # Patch sleep to no-op to keep test fast
         import ibge_sidra_tabelas.sidra as sidra_module
+
+        sleep_calls = []
+        orig_sleep = sidra_module.time.sleep
+        sidra_module.time.sleep = lambda s: sleep_calls.append(s)
+        try:
+            result = fetcher.get_table(P())
+        finally:
+            sidra_module.time.sleep = orig_sleep
+
+        self.assertIsInstance(result, list)
+        self.assertEqual(len(result), 2)
+        # One sleep call with the base delay (first attempt, exponent 0)
+        self.assertEqual(len(sleep_calls), 1)
+        self.assertEqual(sleep_calls[0], sidra_module._RETRY_BASE_DELAY)
+
+    def test_get_table_raises_after_max_retries(self):
+        import ibge_sidra_tabelas.sidra as sidra_module
+
+        fetcher = Fetcher(_DummyConfig())
+
+        class AlwaysTimesOut:
+            def get(self_inner, url):
+                raise httpx.ReadTimeout("timeout")
+
+        fetcher.sidra_client = AlwaysTimesOut()
+
+        class P:
+            def url(self):
+                return "http://example"
 
         orig_sleep = sidra_module.time.sleep
         sidra_module.time.sleep = lambda s: None
         try:
-            df = fetcher.get_table(P())
+            with self.assertRaises(httpx.ReadTimeout):
+                fetcher.get_table(P())
         finally:
             sidra_module.time.sleep = orig_sleep
 
-        self.assertIsInstance(df, list)
-        self.assertEqual(len(df), 2)
+    def test_get_table_retries_on_connect_error(self):
+        """Broader error types beyond ReadTimeout are also retried."""
+        import ibge_sidra_tabelas.sidra as sidra_module
+
+        fetcher = Fetcher(_DummyConfig())
+        calls = {"n": 0}
+
+        class FakeClient:
+            def get(self_inner, url):
+                calls["n"] += 1
+                if calls["n"] == 1:
+                    raise httpx.ConnectError("refused")
+                return [{"col": 1}]
+
+        fetcher.sidra_client = FakeClient()
+
+        class P:
+            def url(self):
+                return "http://example"
+
+        orig_sleep = sidra_module.time.sleep
+        sidra_module.time.sleep = lambda s: None
+        try:
+            result = fetcher.get_table(P())
+        finally:
+            sidra_module.time.sleep = orig_sleep
+
+        self.assertEqual(len(result), 1)
 
     def test_context_manager_exit_delegates(self):
         fetcher = Fetcher(_DummyConfig())
