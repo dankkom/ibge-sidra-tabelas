@@ -7,8 +7,7 @@ full pipeline:
 1. Create ORM tables if they don't exist.
 2. Fetch and save metadata (sidra_tabela, localidade).
 3. Download all data files.
-4. Upsert dimensions from the downloaded data.
-5. Load data rows into the dados table.
+4. Load data rows into the dados table (also upserts dimensions).
 """
 
 import logging
@@ -87,7 +86,6 @@ class BaseScript(ABC):
             self.load_metadata(engine, tabelas)
             data_files = self.download(tabelas)
 
-        database.upsert_dimensoes(engine, self.storage, tabelas)
         database.load_dados(engine, self.storage, data_files)
 
         logger.info("Script execution finished")
