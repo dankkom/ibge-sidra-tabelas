@@ -14,7 +14,6 @@ Public functions:
 import itertools
 import json
 import logging
-import re
 from typing import Any, Iterable
 
 import sqlalchemy as sa
@@ -43,7 +42,8 @@ def _clean_str(val) -> str:
     """Normalize a territory/locality code: strip and remove trailing .0."""
     if val is None:
         return ""
-    return re.sub(r'\.0$', '', str(val).strip())
+    s = str(val).strip()
+    return s[:-2] if s.endswith(".0") else s
 
 
 def _normalize_nc(nc: str) -> str:
@@ -180,9 +180,6 @@ def build_dimensao_lookup(
 # ETL
 # ---------------------------------------------------------------------------
 
-_DIM_KEY_COLS = ["MC", "D2C", "D4C", "D5C", "D6C", "D7C", "D8C", "D9C"]
-_DIM_COLS     = ["D2C", "D4C", "D5C", "D6C", "D7C", "D8C", "D9C"]
-
 
 def upsert_dimensoes(
     engine: sa.Engine,
@@ -221,8 +218,15 @@ def upsert_dimensoes(
             for row in rows:
                 if row.get("V") is None:
                     continue
-                key = tuple(
-                    _coerce(row.get(c)) for c in _DIM_KEY_COLS
+                key = (
+                    _coerce(row.get("MC")),
+                    _coerce(row.get("D2C")),
+                    _coerce(row.get("D4C")),
+                    _coerce(row.get("D5C")),
+                    _coerce(row.get("D6C")),
+                    _coerce(row.get("D7C")),
+                    _coerce(row.get("D8C")),
+                    _coerce(row.get("D9C")),
                 )
                 if key in seen:
                     continue
@@ -300,7 +304,15 @@ def load_dados(
                         "d1n": str(r.get("D1N", "")).strip(),
                     })
 
-                dim_key = tuple(_coerce(r.get(c)) for c in _DIM_COLS)
+                dim_key = (
+                    _coerce(r.get("D2C")),
+                    _coerce(r.get("D4C")),
+                    _coerce(r.get("D5C")),
+                    _coerce(r.get("D6C")),
+                    _coerce(r.get("D7C")),
+                    _coerce(r.get("D8C")),
+                    _coerce(r.get("D9C")),
+                )
                 seen_dims.add(dim_key)
                 processed.append((loc_key, dim_key, str(r.get("D3C")), str(r.get("V")), modificacao))
 
