@@ -103,7 +103,7 @@ class Storage:
         filepath.parent.mkdir(parents=True, exist_ok=True)
         logger.info("Writing file %s", filepath)
         with filepath.open("w", encoding="utf-8") as f:
-            json.dump(data, f)
+            json.dump(data, f, indent=2)
         return filepath
 
     def read_data(self, filepath: Path) -> list[dict]:
@@ -118,7 +118,7 @@ class Storage:
         logger.info("Reading file %s", filepath)
         with filepath.open("r", encoding="utf-8") as f:
             data = json.load(f)
-        
+
         if len(data) > 1:
             rows = data[1:]
             for row in rows:
