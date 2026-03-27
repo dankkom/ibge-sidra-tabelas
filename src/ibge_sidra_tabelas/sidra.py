@@ -129,7 +129,18 @@ class Fetcher:
                 executor.submit(self._download_period, parameter, modification)
                 for parameter, modification in period_params
             ]
-        return [f.result() for f in futures]
+
+        results: list[Path] = []
+        errors: list[Exception] = []
+        for f in futures:
+            try:
+                results.append(f.result())
+            except Exception as e:
+                logger.error("Period download failed: %s", e)
+                errors.append(e)
+        if errors:
+            raise errors[0]
+        return results
 
     def fetch_metadata(self, sidra_tabela: str) -> Agregado:
         """Fetch full metadata for a SIDRA table including localidades and periodos."""
