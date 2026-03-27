@@ -112,7 +112,7 @@ class Storage:
             A list of dicts containing the table data.
         """
         logger.info("Reading file %s", filepath)
-        with filepath.open("r", encoding="utf-8") as f:
+        with filepath.open("rb") as f:
             data = orjson.loads(f.read())
 
         if len(data) > 1:
