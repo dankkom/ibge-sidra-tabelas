@@ -1,3 +1,4 @@
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -7,6 +8,7 @@ from ibge_sidra_tabelas.base import BaseScript
 class DummyConfig:
     def __init__(self, schema=None):
         self.db_schema = schema
+        self.data_dir = Path(tempfile.mkdtemp())
 
 
 class DummyScript(BaseScript):

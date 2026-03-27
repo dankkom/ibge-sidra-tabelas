@@ -9,6 +9,9 @@ from ibge_sidra_tabelas.config import Config, setup_logging
 class TestConfig(unittest.TestCase):
     def test_config_reads_values_and_str(self):
         content = """
+[storage]
+data_dir = /tmp/test_data
+
 [database]
 user = alice
 password = secret

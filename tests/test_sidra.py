@@ -1,8 +1,15 @@
+import tempfile
 import unittest
+from pathlib import Path
 
 import httpx
 
 from ibge_sidra_tabelas.sidra import Fetcher, unnest_classificacoes
+
+
+class _DummyConfig:
+    def __init__(self):
+        self.data_dir = Path(tempfile.mkdtemp())
 
 
 class _Cat:
@@ -31,7 +38,7 @@ class TestSidra(unittest.TestCase):
         self.assertEqual(combos, expected)
 
     def test_get_table_retries_on_timeout(self):
-        fetcher = Fetcher()
+        fetcher = Fetcher(_DummyConfig())
 
         # Replace sidra_client with a fake that fails once then returns data
         calls = {"n": 0}
@@ -64,7 +71,7 @@ class TestSidra(unittest.TestCase):
         self.assertEqual(len(df), 2)
 
     def test_context_manager_exit_delegates(self):
-        fetcher = Fetcher()
+        fetcher = Fetcher(_DummyConfig())
 
         class FakeClient:
             def __init__(self):
