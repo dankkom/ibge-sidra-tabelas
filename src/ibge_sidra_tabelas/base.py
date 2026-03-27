@@ -199,9 +199,10 @@ class BaseScript(ABC):
             ]
 
             seen: set[tuple] = set()
-            dim_dicts = []
+            total_dims = 0
             for filepath in filepaths:
                 rows = self.storage.read_data(filepath)
+                dim_dicts = []
                 for row in rows:
                     if row.get("V") is None:  # Skip rows with no value to avoid creating dimensions with no unit
                         continue
@@ -229,136 +230,131 @@ class BaseScript(ABC):
                         "d8c": _s("D8C"), "d8n": _s("D8N"),
                         "d9c": _s("D9C"), "d9n": _s("D9N"),
                     })
+                del rows
 
-            if not dim_dicts:
-                continue
+                if not dim_dicts:
+                    continue
 
-            with engine.connect() as conn:
-                for i in range(0, len(dim_dicts), 1000):
-                    batch = dim_dicts[i : i + 1000]
-                    stmt = pg_insert(models.Dimensao.__table__).values(batch)
-                    stmt = stmt.on_conflict_do_nothing()
-                    conn.execute(stmt)
-                conn.commit()
+                with engine.connect() as conn:
+                    for i in range(0, len(dim_dicts), 1000):
+                        batch = dim_dicts[i : i + 1000]
+                        stmt = pg_insert(models.Dimensao.__table__).values(batch)
+                        stmt = stmt.on_conflict_do_nothing()
+                        conn.execute(stmt)
+                    conn.commit()
+                total_dims += len(dim_dicts)
 
             logger.info(
-                "Upserted %d dimensions for table %s", len(dim_dicts), sidra_tabela_id
+                "Upserted %d dimensions for table %s", total_dims, sidra_tabela_id
             )
 
     def load_data(self, engine: sa.Engine, data_files: list[dict[str, Any]]):
         """Load downloaded data files into the dados table."""
         dim_cols = ["D2C", "D4C", "D5C", "D6C", "D7C", "D8C", "D9C"]
 
+        def clean_str(val):
+            if val is None:
+                return ""
+            return re.sub(r'\.0$', '', str(val).strip())
+
         for data_file in data_files:
             sidra_tabela_id = str(data_file["sidra_tabela"])
             filepath = data_file["filepath"]
-
-            # Extract modification date from filename (after @ before .json)
             modificacao = filepath.stem.split("@")[-1]
 
             rows = self.storage.read_data(filepath)
             if not rows:
                 continue
 
-            # Drop rows where V is missing
-            rows = [r for r in rows if r.get("V") is not None]
-            if not rows:
-                continue
-
-            def clean_str(val):
-                if val is None:
-                    return ""
-                return re.sub(r'\.0$', '', str(val).strip())
-
-            seen_locs = set()
-            loc_dicts = []
-            loc_keys_list = []
+            # Single pass: collect unique locs/dims and compact row tuples
+            seen_locs: set[tuple] = set()
+            loc_dicts: list[dict] = []
+            seen_dims: set[tuple] = set()
+            # (loc_key, dim_key, d3c, v) — minimal data needed for dados insert
+            processed: list[tuple] = []
 
             for r in rows:
+                if r.get("V") is None:
+                    continue
+
                 nc = clean_str(r.get("NC"))
-                nn = str(r.get("NN", "")).strip()
                 d1c = clean_str(r.get("D1C"))
-                d1n = str(r.get("D1N", "")).strip()
+                loc_key = (nc, d1c)
 
-                loc_keys_list.append((nc, d1c))
-
-                if (nc, d1c) not in seen_locs:
-                    seen_locs.add((nc, d1c))
+                if loc_key not in seen_locs:
+                    seen_locs.add(loc_key)
                     loc_dicts.append({
                         "nc": nc,
-                        "nn": nn,
+                        "nn": str(r.get("NN", "")).strip(),
                         "d1c": d1c,
-                        "d1n": d1n,
+                        "d1n": str(r.get("D1N", "")).strip(),
                     })
 
-            # Upsert Localidades found in this data file dynamically
-            with engine.connect() as conn:
-                for i in range(0, len(loc_dicts), 1000):
-                    batch = loc_dicts[i : i + 1000]
-                    stmt = pg_insert(models.Localidade.__table__).values(batch)
-                    stmt = stmt.on_conflict_do_nothing()
-                    conn.execute(stmt)
-                conn.commit()
-
-            # Rebuild lookup so we have the IDs for newly inserted localidades (just for present keys)
-            loc_lookup = self._build_localidade_lookup(engine, keys=seen_locs)
-
-            dim_keys_list = []
-            seen_dims = set()
-            for r in rows:
-                key = tuple(
+                dim_key = tuple(
                     str(r.get(c)) if r.get(c) is not None else None
                     for c in dim_cols
                 )
-                dim_keys_list.append(key)
-                seen_dims.add(key)
-                
+                seen_dims.add(dim_key)
+
+                processed.append((loc_key, dim_key, str(r.get("D3C")), str(r.get("V"))))
+
+            del rows  # free full row dicts before DB work
+
+            if not processed:
+                continue
+
+            # Upsert localidades
+            with engine.connect() as conn:
+                for i in range(0, len(loc_dicts), 1000):
+                    stmt = pg_insert(models.Localidade.__table__).values(loc_dicts[i : i + 1000])
+                    conn.execute(stmt.on_conflict_do_nothing())
+                conn.commit()
+
+            loc_lookup = self._build_localidade_lookup(engine, keys=seen_locs)
             dim_lookup = self._build_dimensao_lookup(engine, keys=seen_dims)
 
-            dados_to_insert = []
+            # Stream dados inserts in batches — no full list accumulated
             missing_dims = 0
             missing_locs = 0
+            n_inserted = 0
+            batch: list[dict] = []
 
-            for i, r in enumerate(rows):
-                dim_key = dim_keys_list[i]
-                loc_key = loc_keys_list[i]
-                
-                dim_id = dim_lookup.get(dim_key)
-                if dim_id is None:
-                    missing_dims += 1
-                    continue
-                    
-                loc_id = loc_lookup.get(loc_key)
-                if loc_id is None:
-                    missing_locs += 1
-                    continue
+            with engine.connect() as conn:
+                for loc_key, dim_key, d3c, v in processed:
+                    dim_id = dim_lookup.get(dim_key)
+                    if dim_id is None:
+                        missing_dims += 1
+                        continue
+                    loc_id = loc_lookup.get(loc_key)
+                    if loc_id is None:
+                        missing_locs += 1
+                        continue
 
-                dados_to_insert.append({
-                    "sidra_tabela_id": sidra_tabela_id,
-                    "localidade_id": loc_id,
-                    "dimensao_id": dim_id,
-                    "d3c": str(r.get("D3C")),
-                    "modificacao": modificacao,
-                    "ativo": True,
-                    "v": str(r.get("V")),
-                })
+                    batch.append({
+                        "sidra_tabela_id": sidra_tabela_id,
+                        "localidade_id": loc_id,
+                        "dimensao_id": dim_id,
+                        "d3c": d3c,
+                        "modificacao": modificacao,
+                        "ativo": True,
+                        "v": v,
+                    })
+
+                    if len(batch) >= 1000:
+                        conn.execute(pg_insert(models.Dados.__table__).values(batch).on_conflict_do_nothing())
+                        n_inserted += len(batch)
+                        batch.clear()
+
+                if batch:
+                    conn.execute(pg_insert(models.Dados.__table__).values(batch).on_conflict_do_nothing())
+                    n_inserted += len(batch)
+                conn.commit()
 
             if missing_dims > 0:
                 logger.warning("Skipping %d rows with unknown dimensao in %s", missing_dims, filepath)
             if missing_locs > 0:
                 logger.warning("Skipping %d rows with unknown localidade in %s", missing_locs, filepath)
-
-            if not dados_to_insert:
-                continue
-
-            logger.info("Loading %d rows into dados", len(dados_to_insert))
-            with engine.connect() as conn:
-                for i in range(0, len(dados_to_insert), 1000):
-                    batch = dados_to_insert[i : i + 1000]
-                    stmt = pg_insert(models.Dados.__table__).values(batch)
-                    stmt = stmt.on_conflict_do_nothing()
-                    conn.execute(stmt)
-                conn.commit()
+            logger.info("Loaded %d rows into dados from %s", n_inserted, filepath)
 
     def run(self):
         """Execute the complete fetch-and-load pipeline.
