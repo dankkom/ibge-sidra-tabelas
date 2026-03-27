@@ -124,6 +124,26 @@ class TestSidra(unittest.TestCase):
 
         self.assertEqual(len(result), 1)
 
+    def test_context_manager_enter_delegates(self):
+        fetcher = Fetcher(_DummyConfig())
+
+        class FakeClient:
+            def __init__(self):
+                self.entered = False
+
+            def __enter__(self):
+                self.entered = True
+                return self
+
+            def __exit__(self, *a):
+                pass
+
+        client = FakeClient()
+        fetcher.sidra_client = client
+        result = fetcher.__enter__()
+        self.assertTrue(client.entered)
+        self.assertIs(result, fetcher)
+
     def test_context_manager_exit_delegates(self):
         fetcher = Fetcher(_DummyConfig())
 
@@ -136,7 +156,6 @@ class TestSidra(unittest.TestCase):
 
         client = FakeClient()
         fetcher.sidra_client = client
-        # Call exit and ensure it delegates
         fetcher.__exit__(None, None, None)
         self.assertTrue(client.exited)
 

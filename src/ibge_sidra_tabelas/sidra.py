@@ -181,7 +181,7 @@ class Fetcher:
         """Download a single period and save it; return the destination path."""
         if self.storage.exists(parameter, modification):
             filepath = self.storage.get_data_filepath(parameter, modification)
-            logger.warning("File already exists: %s", filepath)
+            logger.debug("File already exists (cache hit): %s", filepath)
             return filepath
         logger.info(
             "Downloading %s",
@@ -222,11 +222,8 @@ class Fetcher:
                 time.sleep(delay)
 
     def __enter__(self):
-        """Enter the context manager and return this `Fetcher`.
-
-        The underlying `SidraClient` does not require explicit startup
-        steps here, but this method allows use in ``with`` statements.
-        """
+        """Enter the context manager and return this `Fetcher`."""
+        self.sidra_client.__enter__()
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
