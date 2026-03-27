@@ -37,7 +37,9 @@ class Localidade(Base):
     __tablename__ = "localidade"
     __table_args__ = (
         UniqueConstraint(
-            "nc", "d1c", name="uq_localidade"
+            "nc",
+            "d1c",
+            name="uq_localidade",
         ),
     )
 
@@ -61,7 +63,6 @@ class Dimensao(Base):
     __tablename__ = "dimensao"
     __table_args__ = (
         UniqueConstraint(
-            "mc",
             "d2c",
             "d4c",
             "d5c",
