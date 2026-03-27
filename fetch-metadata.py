@@ -20,7 +20,7 @@ def main():
     engine = database.get_engine(config)
     models.Base.metadata.create_all(engine)
 
-    storage = Storage.default()
+    storage = Storage.default(config)
     metadata_filepath = storage.get_metadata_filepath(int(args.table))
 
     if not metadata_filepath.exists():

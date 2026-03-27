@@ -2,6 +2,7 @@ import argparse
 import csv
 from pathlib import Path
 
+from ibge_sidra_tabelas.config import Config
 from ibge_sidra_tabelas.storage import Storage
 from ibge_sidra_tabelas.utils import unnest_dimensoes
 
@@ -21,7 +22,8 @@ def get_args() -> argparse.Namespace:
 
 def main():
     args = get_args()
-    storage = Storage.default()
+    config = Config()
+    storage = Storage.default(config)
     table_dir = storage.data_dir / f"t-{args.table}"
 
     if not table_dir.exists():

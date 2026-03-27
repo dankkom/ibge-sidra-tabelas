@@ -1,16 +1,15 @@
 import configparser
 import logging
-import os
 from logging import handlers
 from pathlib import Path
-
-DATA_DIR = Path(os.getenv("DATA_DIR", "data"))
 
 
 class Config:
     def __init__(self):
         self.config = configparser.ConfigParser()
         self.config.read(Path("config.ini"))
+
+        self.data_dir = Path(self.config["storage"]["data_dir"])
 
         self.db_user = self.config["database"]["user"]
         self.db_password = self.config["database"]["password"]

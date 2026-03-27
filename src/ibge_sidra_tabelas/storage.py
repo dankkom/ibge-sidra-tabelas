@@ -14,7 +14,7 @@ from sidra_fetcher.agregados import Agregado
 from sidra_fetcher.reader import load_agregado, save_agregado
 from sidra_fetcher.sidra import Parametro
 
-from .config import DATA_DIR
+from .config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +24,9 @@ class Storage:
         self.data_dir = Path(data_dir)
 
     @classmethod
-    def default(cls) -> "Storage":
-        """Create a Storage rooted at the default project data directory."""
-        data_dir = DATA_DIR
+    def default(cls, config: Config) -> "Storage":
+        """Create a Storage rooted at the data directory from config."""
+        data_dir = config.data_dir
         data_dir.mkdir(exist_ok=True, parents=True)
         return cls(data_dir)
 

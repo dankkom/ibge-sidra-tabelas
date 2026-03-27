@@ -23,6 +23,7 @@ from sidra_fetcher.agregados import Agregado, Classificacao
 from sidra_fetcher.fetcher import SidraClient
 from sidra_fetcher.sidra import Formato, Parametro, Precisao
 
+from .config import Config
 from .storage import Storage
 
 logger = logging.getLogger(__name__)
@@ -47,9 +48,9 @@ class Fetcher:
         max_workers: Maximum number of concurrent period downloads.
     """
 
-    def __init__(self, max_workers: int = 4):
+    def __init__(self, config: Config, max_workers: int = 4):
         self.sidra_client = SidraClient(timeout=600)
-        self.storage = Storage.default()
+        self.storage = Storage.default(config)
         self.max_workers = max_workers
 
     def download_table(
