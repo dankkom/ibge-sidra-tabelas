@@ -36,9 +36,7 @@ class LavourasTemporariasScript(BaseScript):
             }
             for variable in ("109", "216", "214", "112")
         )
-        metadados_1612 = self.fetcher.sidra_client.get_agregado_metadados(
-            "1612"
-        )
+        metadados_1612 = self.fetcher.sidra_client.get_agregado_metadados("1612")
         tabelas_1612 = tuple(
             {
                 "sidra_tabela": "1612",
