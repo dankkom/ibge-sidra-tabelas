@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from pathlib import Path
 
 from ibge_sidra_tabelas.storage import Storage
 
@@ -84,6 +85,46 @@ class TestStorage(unittest.TestCase):
             self.assertEqual(cleaned[0]["V"], 1)
             self.assertIsNone(cleaned[2]["V"])
             self.assertIsNone(cleaned[2]["Other"])
+
+
+    def test_get_metadata_filepath_returns_correct_path(self):
+        with tempfile.TemporaryDirectory() as td:
+            storage = Storage(td)
+            path = storage.get_metadata_filepath(5938)
+            self.assertEqual(path, Path(td) / "t-5938" / "metadados.json")
+
+    def test_read_data_with_only_header_row_returns_empty_list(self):
+        # A file whose first (and only) element is the header row should
+        # return [] since there are no data rows.
+        data = [{"NC": "header_only"}]
+        with tempfile.TemporaryDirectory() as td:
+            storage = Storage(td)
+            param = _SimpleParam("2", {"6": ["1"]}, ["2021"], None, {"": []}, _Fmt("C"))
+            storage.write_data(data, param, "2021-01-01")
+            filepath = storage.get_data_filepath(param, "2021-01-01")
+            self.assertEqual(storage.read_data(filepath), [])
+
+    def test_exists_returns_false_for_missing_file(self):
+        with tempfile.TemporaryDirectory() as td:
+            storage = Storage(td)
+            param = _SimpleParam("3", {"6": ["1"]}, ["2020"], None, {"": []}, _Fmt("C"))
+            self.assertFalse(storage.exists(param, "2020-01-01"))
+
+    def test_exists_returns_true_after_write(self):
+        with tempfile.TemporaryDirectory() as td:
+            storage = Storage(td)
+            param = _SimpleParam("4", {"6": ["1"]}, ["2020"], None, {"": []}, _Fmt("C"))
+            storage.write_data([{"header": "row"}, {"V": "1"}], param, "2020-01-01")
+            self.assertTrue(storage.exists(param, "2020-01-01"))
+
+    def test_storage_default_creates_directory_from_config(self):
+        class _Cfg:
+            data_dir = Path(tempfile.mkdtemp()) / "new_subdir"
+
+        cfg = _Cfg()
+        storage = Storage.default(cfg)
+        self.assertTrue(cfg.data_dir.exists())
+        self.assertEqual(storage.data_dir, cfg.data_dir)
 
 
 if __name__ == "__main__":
