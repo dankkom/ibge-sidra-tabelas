@@ -101,7 +101,7 @@ def save_agregado(engine: sa.engine.Engine, agregado: Agregado):
     )
     with engine.connect() as conn:
         while True:
-            batch = list(itertools.islice(localidades_iter, 1000))
+            batch = list(itertools.islice(localidades_iter, _BATCH_SIZE))
             if not batch:
                 break
             stmt = pg_insert(models.Localidade.__table__).values(batch)
@@ -128,7 +128,7 @@ def build_localidade_lookup(
             keys = list(keys)
             if not keys:
                 return lookup
-            for i in range(0, len(keys), 1000):
+            for i in range(0, len(keys), _BATCH_SIZE):
                 chunk_stmt = stmt.where(
                     sa.tuple_(models.Localidade.nc, models.Localidade.d1c).in_(
                         keys[i : i + _BATCH_SIZE]
@@ -164,7 +164,7 @@ def build_dimensao_lookup(
             )
             if not d2c_keys:
                 return lookup
-            for i in range(0, len(d2c_keys), 1000):
+            for i in range(0, len(d2c_keys), _BATCH_SIZE):
                 chunk_stmt = stmt.where(
                     models.Dimensao.d2c.in_(d2c_keys[i : i + _BATCH_SIZE])
                 )
@@ -245,7 +245,7 @@ def upsert_dimensoes(
                 continue
 
             with engine.connect() as conn:
-                for i in range(0, len(dim_dicts), 1000):
+                for i in range(0, len(dim_dicts), _BATCH_SIZE):
                     stmt = pg_insert(models.Dimensao.__table__).values(dim_dicts[i : i + _BATCH_SIZE])
                     conn.execute(stmt.on_conflict_do_nothing())
                 conn.commit()
@@ -311,7 +311,7 @@ def load_dados(
 
         # Upsert localidades once per table
         with engine.connect() as conn:
-            for i in range(0, len(loc_dicts), 1000):
+            for i in range(0, len(loc_dicts), _BATCH_SIZE):
                 stmt = pg_insert(models.Localidade.__table__).values(loc_dicts[i : i + _BATCH_SIZE])
                 conn.execute(stmt.on_conflict_do_nothing())
             conn.commit()
