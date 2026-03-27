@@ -25,12 +25,8 @@ class Storage:
 
     @classmethod
     def default(cls) -> "Storage":
-        """Create a Storage rooted at the default project data directory.
-
-        The directory ``DATA_DIR / 'raw' / 'ibge-tabelas'`` is created
-        if it does not already exist.
-        """
-        data_dir = DATA_DIR / "raw" / "ibge-tabelas"
+        """Create a Storage rooted at the default project data directory."""
+        data_dir = DATA_DIR
         data_dir.mkdir(exist_ok=True, parents=True)
         return cls(data_dir)
 

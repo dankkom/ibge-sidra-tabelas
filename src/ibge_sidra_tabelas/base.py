@@ -5,7 +5,7 @@ typical workflow used throughout the project:
 
 - Determine which SIDRA tables to fetch (`get_tabelas`).
 - Download table data and metadata using the `sidra.Fetcher` helper.
-- Load metadata into sidra_tabela, localidade and dimensao tables.
+- Load metadata into sidra_tabela and localidade tables.
 - Load data into the dados table.
 
 Concrete scripts should subclass `BaseScript` and implement
@@ -171,52 +171,64 @@ class BaseScript(ABC):
             return lookup
 
     def _upsert_dimensoes_from_data(
-        self, engine: sa.Engine, data_files: list[dict[str, Any]]
+        self, engine: sa.Engine, tabelas: Iterable[dict[str, Any]]
     ):
         """Insert dimensions from data files into the dimensao table.
 
-        All data files are in Formato.A and carry both codes and names
-        (MC, MN, D2C, D2N, etc.). Only dimensions present in the downloaded
-        data are inserted.
+        For each unique SIDRA table, scans the table's data directory for
+        all JSON data files (excluding metadados.json) and extracts unique
+        dimension rows to upsert.
         """
         key_cols = ["MC", "D2C", "D4C", "D5C", "D6C", "D7C", "D8C", "D9C"]
-        name_cols = ["MN", "D2N", "D4N", "D5N", "D6N", "D7N", "D8N", "D9N"]
 
-        for data_file in data_files:
-            filepath = data_file["filepath"]
-
-            logger.info("Upserting dimensions from %s", filepath)
-            rows = self.storage.read_data(filepath)
-            if not rows:
+        seen_tables: set[str] = set()
+        for tabela in tabelas:
+            sidra_tabela_id = str(tabela["sidra_tabela"])
+            if sidra_tabela_id in seen_tables:
                 continue
+            seen_tables.add(sidra_tabela_id)
+
+            table_dir = self.storage.data_dir / f"t-{sidra_tabela_id}"
+            if not table_dir.exists():
+                logger.warning("Data directory not found: %s", table_dir)
+                continue
+
+            filepaths = [
+                f for f in table_dir.glob("*.json")
+                if f.name != "metadados.json"
+            ]
 
             seen: set[tuple] = set()
             dim_dicts = []
-            for row in rows:
-                key = tuple(
-                    str(row[c]) if row.get(c) is not None else None
-                    for c in key_cols
-                )
-                if key in seen:
-                    continue
-                seen.add(key)
+            for filepath in filepaths:
+                rows = self.storage.read_data(filepath)
+                for row in rows:
+                    if row.get("V") is None:  # Skip rows with no value to avoid creating dimensions with no unit
+                        continue
+                    key = tuple(
+                        str(row[c]) if row.get(c) is not None else None
+                        for c in key_cols
+                    )
+                    if key in seen:
+                        continue
+                    seen.add(key)
 
-                def _s(col):
-                    v = row.get(col)
-                    return str(v) if v is not None else None
+                    def _s(col, _row=row):
+                        v = _row.get(col)
+                        return str(v) if v is not None else None
 
-                dim_dicts.append({
-                    "mc": _s("MC"),
-                    "mn": _s("MN") or "",
-                    "d2c": _s("D2C") or "",
-                    "d2n": _s("D2N") or "",
-                    "d4c": _s("D4C"), "d4n": _s("D4N"),
-                    "d5c": _s("D5C"), "d5n": _s("D5N"),
-                    "d6c": _s("D6C"), "d6n": _s("D6N"),
-                    "d7c": _s("D7C"), "d7n": _s("D7N"),
-                    "d8c": _s("D8C"), "d8n": _s("D8N"),
-                    "d9c": _s("D9C"), "d9n": _s("D9N"),
-                })
+                    dim_dicts.append({
+                        "mc": _s("MC"),
+                        "mn": _s("MN") or "",
+                        "d2c": _s("D2C") or "",
+                        "d2n": _s("D2N") or "",
+                        "d4c": _s("D4C"), "d4n": _s("D4N"),
+                        "d5c": _s("D5C"), "d5n": _s("D5N"),
+                        "d6c": _s("D6C"), "d6n": _s("D6N"),
+                        "d7c": _s("D7C"), "d7n": _s("D7N"),
+                        "d8c": _s("D8C"), "d8n": _s("D8N"),
+                        "d9c": _s("D9C"), "d9n": _s("D9N"),
+                    })
 
             if not dim_dicts:
                 continue
@@ -229,7 +241,9 @@ class BaseScript(ABC):
                     conn.execute(stmt)
                 conn.commit()
 
-            logger.info("Upserted %d dimensions from %s", len(dim_dicts), filepath)
+            logger.info(
+                "Upserted %d dimensions for table %s", len(dim_dicts), sidra_tabela_id
+            )
 
     def load_data(self, engine: sa.Engine, data_files: list[dict[str, Any]]):
         """Load downloaded data files into the dados table."""
@@ -366,6 +380,6 @@ class BaseScript(ABC):
             self.load_metadata(engine, tabelas)
             data_files = self.download(tabelas)
 
-        self._upsert_dimensoes_from_data(engine, data_files)
+        self._upsert_dimensoes_from_data(engine, tabelas)
         self.load_data(engine, data_files)
         logger.info("Script execution finished")
