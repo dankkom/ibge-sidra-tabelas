@@ -145,28 +145,27 @@ class Fetcher:
     def fetch_metadata(self, sidra_tabela: str) -> Agregado:
         """Fetch full metadata for a SIDRA table including localidades and periodos."""
         agregado = self.sidra_client.get_agregado_metadados(int(sidra_tabela))
+
+        all_niveis = (
+            agregado.nivel_territorial.administrativo
+            + agregado.nivel_territorial.ibge
+            + agregado.nivel_territorial.especial
+        )
+
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            loc_futures = [
+                executor.submit(
+                    self.sidra_client.get_agregado_localidades,
+                    agregado_id=int(sidra_tabela),
+                    localidades_nivel=nivel,
+                )
+                for nivel in all_niveis
+            ]
+
         localidades = []
-        for nivel in agregado.nivel_territorial.administrativo:
-            localidades.extend(
-                self.sidra_client.get_agregado_localidades(
-                    agregado_id=int(sidra_tabela),
-                    localidades_nivel=nivel,
-                )
-            )
-        for nivel in agregado.nivel_territorial.ibge:
-            localidades.extend(
-                self.sidra_client.get_agregado_localidades(
-                    agregado_id=int(sidra_tabela),
-                    localidades_nivel=nivel,
-                )
-            )
-        for nivel in agregado.nivel_territorial.especial:
-            localidades.extend(
-                self.sidra_client.get_agregado_localidades(
-                    agregado_id=int(sidra_tabela),
-                    localidades_nivel=nivel,
-                )
-            )
+        for f in loc_futures:
+            localidades.extend(f.result())
+
         agregado.localidades = localidades
         agregado.periodos = self.sidra_client.get_agregado_periodos(
             int(sidra_tabela)
