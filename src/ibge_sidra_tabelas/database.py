@@ -47,6 +47,13 @@ def _clean_str(val) -> str:
     return re.sub(r'\.0$', '', str(val).strip())
 
 
+def _normalize_nc(nc: str) -> str:
+    """Ensure NC uses the 'N<n>' format (e.g. '6' -> 'N6', 'N6' -> 'N6')."""
+    if nc and not nc.startswith("N"):
+        return "N" + nc
+    return nc
+
+
 # ---------------------------------------------------------------------------
 # Engine
 # ---------------------------------------------------------------------------
@@ -281,7 +288,7 @@ def load_dados(
                 if r.get("V") is None:
                     continue
 
-                nc = _clean_str(r.get("NC"))
+                nc = _normalize_nc(_clean_str(r.get("NC")))
                 d1c = _clean_str(r.get("D1C"))
                 loc_key = (nc, d1c)
 
