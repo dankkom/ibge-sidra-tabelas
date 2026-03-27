@@ -2,7 +2,6 @@ import unittest
 
 from ibge_sidra_tabelas.utils import unnest_dimensoes
 
-
 # ---------------------------------------------------------------------------
 # Stub domain objects — duck-typed, no sidra_fetcher import needed
 # ---------------------------------------------------------------------------

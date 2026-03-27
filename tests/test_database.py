@@ -2,7 +2,6 @@ import unittest
 
 from ibge_sidra_tabelas import database
 
-
 # ---------------------------------------------------------------------------
 # Internal helpers — no DB connection required
 # ---------------------------------------------------------------------------
