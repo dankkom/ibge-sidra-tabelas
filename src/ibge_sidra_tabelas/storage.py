@@ -6,10 +6,10 @@ paths from a `Parametro`, checking whether a file already exists, and
 reading/writing JSON data files.
 """
 
-import json
 import logging
 from pathlib import Path
 
+import orjson
 from sidra_fetcher.agregados import Agregado
 from sidra_fetcher.reader import load_agregado, save_agregado
 from sidra_fetcher.sidra import Parametro
@@ -99,7 +99,7 @@ class Storage:
         filepath.parent.mkdir(parents=True, exist_ok=True)
         logger.info("Writing file %s", filepath)
         with filepath.open("w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+            f.write(orjson.dumps(data, option=orjson.OPT_INDENT_2).decode())
         return filepath
 
     def read_data(self, filepath: Path) -> list[dict]:
@@ -113,7 +113,7 @@ class Storage:
         """
         logger.info("Reading file %s", filepath)
         with filepath.open("r", encoding="utf-8") as f:
-            data = json.load(f)
+            data = orjson.loads(f.read())
 
         if len(data) > 1:
             rows = data[1:]

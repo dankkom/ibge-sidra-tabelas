@@ -28,6 +28,8 @@ from .storage import Storage
 
 logger = logging.getLogger(__name__)
 
+_BATCH_SIZE = 5000
+
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -123,7 +125,7 @@ def build_localidade_lookup(
             for i in range(0, len(keys), 1000):
                 chunk_stmt = stmt.where(
                     sa.tuple_(models.Localidade.nc, models.Localidade.d1c).in_(
-                        keys[i : i + 1000]
+                        keys[i : i + _BATCH_SIZE]
                     )
                 )
                 for row in conn.execute(chunk_stmt):
@@ -158,7 +160,7 @@ def build_dimensao_lookup(
                 return lookup
             for i in range(0, len(d2c_keys), 1000):
                 chunk_stmt = stmt.where(
-                    models.Dimensao.d2c.in_(d2c_keys[i : i + 1000])
+                    models.Dimensao.d2c.in_(d2c_keys[i : i + _BATCH_SIZE])
                 )
                 for row in conn.execute(chunk_stmt):
                     lookup[(row.d2c, row.d4c, row.d5c, row.d6c, row.d7c, row.d8c, row.d9c)] = row.id
@@ -238,7 +240,7 @@ def upsert_dimensoes(
 
             with engine.connect() as conn:
                 for i in range(0, len(dim_dicts), 1000):
-                    stmt = pg_insert(models.Dimensao.__table__).values(dim_dicts[i : i + 1000])
+                    stmt = pg_insert(models.Dimensao.__table__).values(dim_dicts[i : i + _BATCH_SIZE])
                     conn.execute(stmt.on_conflict_do_nothing())
                 conn.commit()
             total += len(dim_dicts)
@@ -296,7 +298,7 @@ def load_dados(
         # Upsert localidades
         with engine.connect() as conn:
             for i in range(0, len(loc_dicts), 1000):
-                stmt = pg_insert(models.Localidade.__table__).values(loc_dicts[i : i + 1000])
+                stmt = pg_insert(models.Localidade.__table__).values(loc_dicts[i : i + _BATCH_SIZE])
                 conn.execute(stmt.on_conflict_do_nothing())
             conn.commit()
 
@@ -329,7 +331,7 @@ def load_dados(
                     "v": v,
                 })
 
-                if len(batch) >= 1000:
+                if len(batch) >= _BATCH_SIZE:
                     conn.execute(pg_insert(models.Dados.__table__).values(batch).on_conflict_do_nothing())
                     n_inserted += len(batch)
                     batch.clear()

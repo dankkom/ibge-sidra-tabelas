@@ -13,6 +13,7 @@ dependencies = [
     "sidra-fetcher @ git+ssh://git@github.com/dankkom/sidra-fetcher.git@main#egg=sidra-fetcher",
     "psycopg[binary]>=3.2.9",
     "sqlalchemy>=2.0.41",
+    "orjson>=3.11.7",
 ]
 
 [tool.hatch.metadata]
