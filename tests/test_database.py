@@ -3,6 +3,55 @@ import unittest
 from ibge_sidra_tabelas import database
 
 
+# ---------------------------------------------------------------------------
+# Internal helpers — no DB connection required
+# ---------------------------------------------------------------------------
+
+class TestCoerce(unittest.TestCase):
+    def test_none_returns_none(self):
+        self.assertIsNone(database._coerce(None))
+
+    def test_integer_returns_string(self):
+        self.assertEqual(database._coerce(42), "42")
+
+    def test_zero_returns_string_not_none(self):
+        self.assertEqual(database._coerce(0), "0")
+
+    def test_string_passes_through(self):
+        self.assertEqual(database._coerce("hello"), "hello")
+
+
+class TestCleanStr(unittest.TestCase):
+    def test_none_returns_empty_string(self):
+        self.assertEqual(database._clean_str(None), "")
+
+    def test_trailing_dot_zero_removed(self):
+        self.assertEqual(database._clean_str("1100015.0"), "1100015")
+
+    def test_surrounding_whitespace_stripped(self):
+        self.assertEqual(database._clean_str("  abc  "), "abc")
+
+    def test_plain_string_unchanged(self):
+        self.assertEqual(database._clean_str("ABC"), "ABC")
+
+    def test_zero_string_unchanged(self):
+        self.assertEqual(database._clean_str("0"), "0")
+
+
+class TestNormalizeNc(unittest.TestCase):
+    def test_bare_number_gets_n_prefix(self):
+        self.assertEqual(database._normalize_nc("6"), "N6")
+
+    def test_already_prefixed_is_unchanged(self):
+        self.assertEqual(database._normalize_nc("N6"), "N6")
+
+    def test_empty_string_is_unchanged(self):
+        self.assertEqual(database._normalize_nc(""), "")
+
+    def test_multi_digit_number_gets_prefix(self):
+        self.assertEqual(database._normalize_nc("101"), "N101")
+
+
 class DummyConfig:
     def __init__(self, user, password, host, port, name, table, schema=None):
         self.db_user = user
@@ -37,6 +86,11 @@ class TestDatabaseHelpers(unittest.TestCase):
         self.assertIn("CONSTRAINT t_pkey PRIMARY KEY (id)", ddl)
         self.assertIn("TABLESPACE ts;", ddl)
         self.assertIn("COMMENT ON TABLE s.t IS 'My table';", ddl)
+
+    def test_build_ddl_without_comment_omits_comment_clause(self):
+        ddl = database.build_ddl("s", "t", "ts", {"id": "BIGINT"}, ["id"])
+        self.assertIn("CREATE TABLE IF NOT EXISTS s.t", ddl)
+        self.assertNotIn("COMMENT ON TABLE", ddl)
 
     def test_build_dcl(self):
         dcl = database.build_dcl("s", "t", "owner_role", "reader_role")
