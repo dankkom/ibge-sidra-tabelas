@@ -270,15 +270,17 @@ def unnest_classificacoes(
         the provided classifications.
     """
     if data is None:
-        data: dict[str, list[str]] = {}
-    for i, classificacao in enumerate(classificacoes, 1):
-        classificacao_id = str(classificacao.id)
-        for categoria in classificacao.categorias:
-            categoria_id = str(categoria.id)
-            if categoria_id == "0":
-                continue
-            data[classificacao_id] = [categoria_id]
-            if len(classificacoes) == 1:
-                yield dict(**data)
-            else:
-                yield from unnest_classificacoes(classificacoes[i:], data)
+        data = {}
+    if not classificacoes:
+        return
+    classificacao = classificacoes[0]
+    classificacao_id = str(classificacao.id)
+    for categoria in classificacao.categorias:
+        categoria_id = str(categoria.id)
+        if categoria_id == "0":
+            continue
+        new_data = {**data, classificacao_id: [categoria_id]}
+        if len(classificacoes) == 1:
+            yield new_data
+        else:
+            yield from unnest_classificacoes(classificacoes[1:], new_data)

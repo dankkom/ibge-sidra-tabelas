@@ -37,6 +37,25 @@ class TestSidra(unittest.TestCase):
         expected = [{"1": ["5"]}]
         self.assertEqual(combos, expected)
 
+    def test_unnest_classificacoes_three_levels_full_product(self):
+        # Verifies no stale dict keys bleed across the recursion.
+        # 2 × 2 × 2 = 8 combinations expected.
+        classificacoes = [
+            _Cls(1, [10, 11]),
+            _Cls(2, [20, 21]),
+            _Cls(3, [30, 31]),
+        ]
+        combos = list(unnest_classificacoes(classificacoes))
+        self.assertEqual(len(combos), 8)
+        # Every combo must have exactly 3 keys
+        for combo in combos:
+            self.assertEqual(set(combo.keys()), {"1", "2", "3"})
+        # All combinations must be distinct
+        combo_tuples = [
+            (combo["1"][0], combo["2"][0], combo["3"][0]) for combo in combos
+        ]
+        self.assertEqual(len(set(combo_tuples)), 8)
+
     def test_get_table_retries_on_timeout(self):
         fetcher = Fetcher(_DummyConfig())
 
