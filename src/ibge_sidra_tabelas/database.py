@@ -253,55 +253,64 @@ def load_dados(
     storage: Storage,
     data_files: list[dict[str, Any]],
 ):
-    """Load data rows from JSON files into the dados table."""
+    """Load data rows from JSON files into the dados table.
+
+    Files are grouped by SIDRA table so that localidade and dimensao
+    lookups are built once per table rather than once per file.
+    """
+    # Group files by table to minimise DB round-trips
+    files_by_table: dict[str, list[dict]] = {}
     for data_file in data_files:
         sidra_tabela_id = str(data_file["sidra_tabela"])
-        filepath = data_file["filepath"]
-        modificacao = filepath.stem.split("@")[-1]
+        files_by_table.setdefault(sidra_tabela_id, []).append(data_file)
 
-        rows = storage.read_data(filepath)
-        if not rows:
-            continue
-
-        # Single pass: collect unique locs/dims and compact row tuples
+    for sidra_tabela_id, table_files in files_by_table.items():
+        # Single pass across all files for this table: collect unique
+        # locs/dims and compact row tuples (loc_key, dim_key, d3c, v, mod)
         seen_locs: set[tuple] = set()
         loc_dicts: list[dict] = []
         seen_dims: set[tuple] = set()
-        processed: list[tuple] = []  # (loc_key, dim_key, d3c, v)
+        processed: list[tuple] = []
 
-        for r in rows:
-            if r.get("V") is None:
-                continue
+        for data_file in table_files:
+            filepath = data_file["filepath"]
+            modificacao = filepath.stem.split("@")[-1]
 
-            nc = _clean_str(r.get("NC"))
-            d1c = _clean_str(r.get("D1C"))
-            loc_key = (nc, d1c)
+            rows = storage.read_data(filepath)
+            for r in rows:
+                if r.get("V") is None:
+                    continue
 
-            if loc_key not in seen_locs:
-                seen_locs.add(loc_key)
-                loc_dicts.append({
-                    "nc": nc,
-                    "nn": str(r.get("NN", "")).strip(),
-                    "d1c": d1c,
-                    "d1n": str(r.get("D1N", "")).strip(),
-                })
+                nc = _clean_str(r.get("NC"))
+                d1c = _clean_str(r.get("D1C"))
+                loc_key = (nc, d1c)
 
-            dim_key = tuple(_coerce(r.get(c)) for c in _DIM_COLS)
-            seen_dims.add(dim_key)
-            processed.append((loc_key, dim_key, str(r.get("D3C")), str(r.get("V"))))
+                if loc_key not in seen_locs:
+                    seen_locs.add(loc_key)
+                    loc_dicts.append({
+                        "nc": nc,
+                        "nn": str(r.get("NN", "")).strip(),
+                        "d1c": d1c,
+                        "d1n": str(r.get("D1N", "")).strip(),
+                    })
 
-        del rows
+                dim_key = tuple(_coerce(r.get(c)) for c in _DIM_COLS)
+                seen_dims.add(dim_key)
+                processed.append((loc_key, dim_key, str(r.get("D3C")), str(r.get("V")), modificacao))
+
+            del rows
 
         if not processed:
             continue
 
-        # Upsert localidades
+        # Upsert localidades once per table
         with engine.connect() as conn:
             for i in range(0, len(loc_dicts), 1000):
                 stmt = pg_insert(models.Localidade.__table__).values(loc_dicts[i : i + _BATCH_SIZE])
                 conn.execute(stmt.on_conflict_do_nothing())
             conn.commit()
 
+        # Build lookups once per table (was once per file)
         loc_lookup = build_localidade_lookup(engine, keys=seen_locs)
         dim_lookup = build_dimensao_lookup(engine, keys=seen_dims)
 
@@ -311,7 +320,7 @@ def load_dados(
         batch: list[dict] = []
 
         with engine.connect() as conn:
-            for loc_key, dim_key, d3c, v in processed:
+            for loc_key, dim_key, d3c, v, modificacao in processed:
                 dim_id = dim_lookup.get(dim_key)
                 if dim_id is None:
                     missing_dims += 1
@@ -342,10 +351,16 @@ def load_dados(
             conn.commit()
 
         if missing_dims > 0:
-            logger.warning("Skipping %d rows with unknown dimensao in %s", missing_dims, filepath)
+            logger.warning(
+                "Skipping %d rows with unknown dimensao for table %s",
+                missing_dims, sidra_tabela_id,
+            )
         if missing_locs > 0:
-            logger.warning("Skipping %d rows with unknown localidade in %s", missing_locs, filepath)
-        logger.info("Loaded %d rows into dados from %s", n_inserted, filepath)
+            logger.warning(
+                "Skipping %d rows with unknown localidade for table %s",
+                missing_locs, sidra_tabela_id,
+            )
+        logger.info("Loaded %d rows into dados for table %s", n_inserted, sidra_tabela_id)
 
 
 # ---------------------------------------------------------------------------

@@ -6,6 +6,7 @@ from ibge_sidra_tabelas.config import Config
 from ibge_sidra_tabelas.storage import Storage
 from ibge_sidra_tabelas.utils import unnest_dimensoes
 
+
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Save dimensao.csv for a given SIDRA table using already fetched data"
