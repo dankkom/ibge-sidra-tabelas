@@ -98,18 +98,21 @@ class Fetcher:
         if variables is None:
             variables = ["all"]
 
+        # Use cached metadata when available — avoids redundant round-trips
+        # after load_metadata has already fetched and stored the Agregado.
+        metadata_path = self.storage.get_metadata_filepath(sidra_tabela)
+        if metadata_path.exists():
+            metadados = self.storage.read_metadata(sidra_tabela)
+        else:
+            metadados = self.sidra_client.get_agregado_metadados(int(sidra_tabela))
+
         if classifications is None:
-            metadados = self.sidra_client.get_agregado_metadados(
-                int(sidra_tabela)
-            )
             classifications = {
-                str(classificacao.id): []
-                for classificacao in metadados.classificacoes
+                str(c.id): [] for c in metadados.classificacoes
             }
 
-        periodos = self.sidra_client.get_agregado_periodos(
-            agregado_id=int(sidra_tabela)
-        )
+        periodos = getattr(metadados, "periodos", None) or \
+            self.sidra_client.get_agregado_periodos(agregado_id=int(sidra_tabela))
 
         period_params: list[tuple[Parametro, str]] = []
         for periodo in periodos:
