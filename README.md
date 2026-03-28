@@ -65,7 +65,7 @@ O projeto segue uma arquitetura em camadas, com responsabilidades bem delimitada
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                     scripts/*.toml                          │
-│     pibmunic.toml  ·  ipca.toml  ·  censo.toml  · ...       │
+│      pib.toml  ·  ipca.toml  ·  censo.toml  · ...            │
 │            (declaração das tabelas a baixar)                │
 └──────────────────────────┬──────────────────────────────────┘
                            │ lido por
@@ -154,7 +154,7 @@ Isso garante que cada combinação de tabela × localidade × variável/classifi
 
 | Arquivo TOML | Pesquisa | Tabelas SIDRA |
 |---|---|---|
-| `scripts/pibmunic.toml` | **PIB dos Municípios** | 5938 |
+| `scripts/pib_munic/pib.toml` | **PIB dos Municípios** | 5938 |
 | `scripts/populacao/estimapop.toml` | **Estimativas de População** | 6579 |
 | `scripts/populacao/censo_populacao.toml` | **Censo Demográfico** | 200 |
 | `scripts/populacao/contagem_populacao.toml` | **Contagem de População** | 305, 793 |
@@ -239,7 +239,7 @@ Passe o caminho do arquivo TOML para `scripts/run.py`:
 
 ```bash
 # PIB dos Municípios
-python scripts/run.py scripts/pibmunic.toml
+python scripts/run.py scripts/pib_munic/pib.toml
 
 # IPCA
 python scripts/run.py scripts/snpc/ipca.toml
@@ -412,7 +412,7 @@ python scripts/transform.py transformations/minha_analise.toml
 | `transformations/snpc/ipca.toml` | `analytics.ipca` | IPCA completo |
 | `transformations/snpc/inpc.toml` | `analytics.inpc` | INPC completo |
 | `transformations/snpc/ipca15.toml` | `analytics.ipca15` | IPCA-15 completo |
-| `transformations/pibmunic.toml` | `analytics.pib_municipal` | PIB dos Municípios |
+| `transformations/pib_munic/pib.toml` | `analytics.pib_municipal` | PIB dos Municípios |
 | `transformations/populacao/estimapop.toml` | `analytics.estimativa_populacao` | Estimativas de população |
 | `transformations/populacao/censo_populacao.toml` | `analytics.censo_populacao` | Censo Demográfico |
 | `transformations/populacao/contagem_populacao.toml` | `analytics.contagem_populacao` | Contagem da População |
@@ -491,7 +491,7 @@ from ibge_sidra_tabelas.toml_runner import TomlScript
 from ibge_sidra_tabelas.config import Config
 from pathlib import Path
 
-script = TomlScript(Config(), Path("scripts/pibmunic.toml"))
+script = TomlScript(Config(), Path("scripts/pib_munic/pib.toml"))
 script.run()
 ```
 
@@ -618,14 +618,14 @@ ibge-sidra-tabelas/
 ├── scripts/
 │   ├── run.py                # Carga: python scripts/run.py <script.toml>
 │   ├── transform.py          # Transformação: python scripts/transform.py <transform.toml>
-│   ├── pibmunic.toml
+│   ├── pib_munic/           # PIB dos Municípios
 │   ├── populacao/
 │   ├── snpc/                 # IPCA, IPCA-15, INPC
 │   ├── ppm/                  # Pesquisa Pecuária Municipal
 │   ├── pam/                  # Produção Agrícola Municipal
 │   └── pevs/                 # Produção da Extração Vegetal e Silvicultura
 ├── transformations/          # Pares TOML + SQL para tabelas analíticas
-│   ├── pibmunic.toml + .sql
+│   ├── pib_munic/
 │   ├── populacao/
 │   ├── snpc/
 │   ├── ppm/
