@@ -26,13 +26,13 @@ fi
 
 echo "Starting execution of all scripts in '$SCRIPT_DIR/'..."
 
-# Loop through all .py files in the scripts directory recursively
-find "$SCRIPT_DIR" -type f -name "*.py" | sort | while read -r script; do
+# Loop through all .toml files in the scripts directory recursively
+find "$SCRIPT_DIR" -type f -name "*.toml" | sort | while read -r script; do
   echo "========================================"
   echo "Running: $script"
   echo "========================================"
 
-  .venv/bin/python "$script"
+  .venv/bin/python scripts/run.py "$script"
 
   EXIT_CODE=$?
   if [ $EXIT_CODE -ne 0 ]; then

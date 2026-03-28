@@ -233,10 +233,13 @@ python scripts/run.py scripts/pam/lavouras_temporarias.toml
 
 ```bash
 # Roda todos os arquivos TOML em scripts/ sequencialmente
-./run-all.sh scripts
+./run-all.sh
+
+# Ou especifique um subdiretório
+./run-all.sh scripts/snpc
 ```
 
-O script registra o código de saída de cada execução e continua mesmo em caso de falha individual.
+`run-all.sh` percorre recursivamente o diretório informado (padrão: `scripts/`), encontra todos os arquivos `.toml` e os passa para `scripts/run.py`. O código de saída de cada execução é registrado e o loop continua mesmo em caso de falha individual.
 
 ---
 
