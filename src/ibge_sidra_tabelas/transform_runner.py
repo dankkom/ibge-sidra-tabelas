@@ -1,0 +1,110 @@
+# Copyright (C) 2026 Komesu, D.K. <daniel@dkko.me>
+#
+# This file is part of ibge-sidra-tabelas.
+#
+# ibge-sidra-tabelas is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# ibge-sidra-tabelas is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with ibge-sidra-tabelas.  If not, see <https://www.gnu.org/licenses/>.
+
+"""Pipeline runner for SQL transformations defined by TOML + SQL file pairs.
+
+Each transformation is defined by two files sharing the same stem:
+
+``transformations/snpc/ipca.toml``
+    Declares the target table name, schema, and materialization strategy.
+
+``transformations/snpc/ipca.sql``
+    Contains a SELECT query that produces analysis-ready data.
+
+TOML schema
+-----------
+::
+
+    [table]
+    name        = "ipca"
+    schema      = "analytics"
+    strategy    = "replace"     # "replace" or "view"
+    description = "IPCA - todas as séries históricas unificadas"
+
+Strategies
+~~~~~~~~~~
+``replace``
+    ``DROP TABLE IF EXISTS`` followed by ``CREATE TABLE ... AS``.
+    Full refresh — best for batch imports into Power BI, Excel, etc.
+
+``view``
+    ``CREATE OR REPLACE VIEW``.  Zero storage cost, always up-to-date,
+    best for live database connections.
+
+The SQL query uses unqualified table names (``dados``, ``dimensao``,
+``localidade``, ``sidra_tabela``).  They resolve via the database
+``search_path`` set by ``get_engine`` from ``config.ini``.
+"""
+
+import logging
+import tomllib
+from pathlib import Path
+
+from . import database
+from .config import Config
+
+logger = logging.getLogger(__name__)
+
+
+class TransformRunner:
+    """Run a SQL transformation defined by a TOML + SQL file pair."""
+
+    def __init__(self, config: Config, toml_path: Path):
+        self.config = config
+        self.toml_path = toml_path
+
+    def run(self):
+        with open(self.toml_path, "rb") as f:
+            data = tomllib.load(f)
+
+        table_config = data["table"]
+        name = table_config["name"]
+        schema = table_config["schema"]
+        strategy = table_config.get("strategy", "replace")
+
+        sql_path = self.toml_path.with_suffix(".sql")
+        query = sql_path.read_text(encoding="utf-8").strip()
+
+        engine = database.get_engine(self.config)
+        qualified = f'"{schema}"."{name}"'
+
+        logger.info(
+            "Running transformation: %s (strategy=%s)", qualified, strategy
+        )
+
+        with engine.begin() as conn:
+            conn.exec_driver_sql(
+                f'CREATE SCHEMA IF NOT EXISTS "{schema}"'
+            )
+
+            if strategy == "view":
+                conn.exec_driver_sql(
+                    f"CREATE OR REPLACE VIEW {qualified} AS\n{query}"
+                )
+            elif strategy == "replace":
+                conn.exec_driver_sql(
+                    f"DROP TABLE IF EXISTS {qualified}"
+                )
+                conn.exec_driver_sql(
+                    f"CREATE TABLE {qualified} AS\n{query}"
+                )
+            else:
+                raise ValueError(
+                    f"Unknown strategy {strategy!r} in {self.toml_path}"
+                )
+
+        logger.info("Transformation %s completed", qualified)
