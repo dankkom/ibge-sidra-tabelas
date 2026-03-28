@@ -1,3 +1,20 @@
+# Copyright (C) 2026 Komesu, D.K. <daniel@dkko.me>
+#
+# This file is part of ibge-sidra-tabelas.
+#
+# ibge-sidra-tabelas is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# ibge-sidra-tabelas is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with ibge-sidra-tabelas.  If not, see <https://www.gnu.org/licenses/>.
+
 # Tabela 1686 - INPC - Variação mensal, para o índice geral, grupos, subgrupos, itens e subitens de produtos e serviços (de julho/1989 até dezembro/1990)
 # Tabela 1690 - INPC - Peso mensal, para o índice geral, grupos, subgrupos, itens e subitens de produtos e serviços (de julho/1989 até dezembro/1990)
 # Tabela 22 - INPC - Variação mensal, para o índice geral, grupos, subgrupos, itens e subitens de produtos e serviços (de janeiro/1991 até julho/1999)

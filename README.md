@@ -492,4 +492,4 @@ ibge-sidra-tabelas/
 
 ## Licença
 
-MIT
+GNU GPLv3
