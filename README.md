@@ -16,6 +16,7 @@ Este projeto resolve exatamente esse problema: um pipeline ETL completo, com con
 - **Desempenho real:** downloads multi-threaded + carga via `COPY` do PostgreSQL são ordens de magnitude mais rápidos que abordagens ingênuas.
 - **Confiabilidade:** retry com backoff exponencial lida com instabilidades da API sem interromper o pipeline.
 - **Declarativo:** cada pesquisa é descrita em um arquivo TOML — sem código Python para adicionar novas séries.
+- **Transformações:** camada de transformação (TOML + SQL) gera tabelas planas e desnormalizadas, prontas para Power BI, Excel ou qualquer ferramenta analítica.
 - **Banco normalizado:** dados separados em quatro tabelas relacionais com constraints de unicidade e índices otimizados para consultas analíticas.
 
 ---
@@ -33,6 +34,7 @@ Este projeto resolve exatamente esse problema: um pipeline ETL completo, com con
   - [Executar um script](#executar-um-script)
   - [Executar todos os scripts](#executar-todos-os-scripts)
 - [Formato TOML](#formato-toml)
+- [Transformações](#transformações)
 - [Fluxo de Dados](#fluxo-de-dados)
 - [Módulos Internos](#módulos-internos)
 - [Testes](#testes)
@@ -51,6 +53,7 @@ Este projeto resolve exatamente esse problema: um pipeline ETL completo, com con
 | **Normalização completa** | Localidades, dimensões (variável × classificação) e fatos em tabelas separadas |
 | **Suporte a 6 classificações** | Produto cartesiano de até 6 níveis de classificação por variável |
 | **Metadados persistidos** | Agregados, periodicidade e metadados JSON salvos no banco para consulta |
+| **Transformações SQL** | Gera tabelas planas (ou views) prontas para análise, definidas por pares TOML + SQL |
 | **Logging detalhado** | Dual-channel (arquivo rotativo + console) com rastreamento de cada etapa |
 
 ---
@@ -79,15 +82,34 @@ O projeto segue uma arquitetura em camadas, com responsabilidades bem delimitada
        │                   │                  │
 ┌──────▼──────┐   ┌────────▼───────┐   ┌──────▼──────┐
 │  SIDRA API  │   │  PostgreSQL    │   │ Sistema de  │
-│  (IBGE)     │   │  (4 tabelas)   │   │ arquivos    │
-└─────────────┘   └────────────────┘   └─────────────┘
+│  (IBGE)     │   │  (ibge_sidra)  │   │ arquivos    │
+└─────────────┘   └────────┬───────┘   └─────────────┘
+                           │
+       ┌───────────────────▼───────────────────┐
+       │       transformations/*.toml + *.sql   │
+       │          (pares TOML + SQL)            │
+       │    ipca.toml ← metadata                │
+       │    ipca.sql  ← SELECT denormalizado    │
+       └───────────────────┬───────────────────┘
+                           │ lido por
+       ┌───────────────────▼───────────────────┐
+       │       transform_runner.py              │
+       │  TransformRunner: CREATE TABLE AS ...  │
+       └───────────────────┬───────────────────┘
+                           │
+               ┌───────────▼───────────┐
+               │  PostgreSQL           │
+               │  (analytics schema)   │
+               │  tabelas prontas para │
+               │  Power BI / Excel     │
+               └───────────────────────┘
 ```
 
 **Princípios de design:**
 
 - **Determinismo:** o mesmo conjunto de parâmetros sempre gera o mesmo nome de arquivo — re-execuções são seguras e baratas.
 - **Dois passos de carga:** o primeiro escaneamento coleta chaves únicas de localidades e dimensões; o segundo transmite os dados via COPY, evitando acúmulo em memória.
-- **Declarativo:** scripts são arquivos TOML estáticos — toda a lógica de pipeline está em `toml_runner.py`.
+- **Declarativo:** tanto a carga (scripts TOML) quanto a transformação (TOML + SQL) são definidas por arquivos de configuração.
 
 ---
 
@@ -313,6 +335,97 @@ python scripts/run.py scripts/minha_pesquisa.toml
 
 ---
 
+## Transformações
+
+Após a carga dos dados brutos no banco normalizado, a camada de transformação gera tabelas planas e desnormalizadas, prontas para consumo por ferramentas analíticas (Power BI, Excel, Metabase, etc.).
+
+Cada transformação é definida por um par de arquivos com o mesmo nome:
+
+- **`.toml`** — metadados: nome da tabela de destino, schema e estratégia de materialização
+- **`.sql`** — query SELECT que produz os dados denormalizados
+
+### Executar uma transformação
+
+```bash
+python scripts/transform.py transformations/snpc/ipca.toml
+```
+
+### Executar todas as transformações
+
+```bash
+./transform-all.sh
+
+# Ou especifique um subdiretório
+./transform-all.sh transformations/snpc
+```
+
+### Formato TOML da transformação
+
+```toml
+[table]
+name        = "ipca"           # Nome da tabela de destino
+schema      = "analytics"      # Schema de destino (criado automaticamente)
+strategy    = "replace"        # Estratégia de materialização
+description = "IPCA - variação e peso mensal por categoria e localidade"
+```
+
+**Estratégias disponíveis:**
+
+| Estratégia | Comportamento | Quando usar |
+|---|---|---|
+| `replace` | `DROP TABLE` + `CREATE TABLE AS` | Import em Power BI / Excel (refresh completo) |
+| `view` | `CREATE OR REPLACE VIEW` | Conexões live (zero storage, sempre atualizado) |
+
+### SQL da transformação
+
+O arquivo `.sql` contém um SELECT puro. Os nomes de tabela (`dados`, `dimensao`, `localidade`) são resolvidos pelo `search_path` configurado em `config.ini` — não use prefixo de schema:
+
+```sql
+SELECT
+    d.d3c                                                   AS periodo,
+    l.d1c                                                   AS localidade_id,
+    l.d1n                                                   AS localidade,
+    dim.d2n                                                 AS variavel,
+    dim.d4n                                                 AS categoria,
+    CASE WHEN d.v ~ '^-?[0-9]' THEN d.v::numeric END       AS valor
+FROM dados d
+JOIN dimensao   dim ON d.dimensao_id   = dim.id
+JOIN localidade l   ON d.localidade_id = l.id
+WHERE d.sidra_tabela_id IN ('7060', '1419')
+  AND d.ativo = true
+```
+
+Valores não numéricos do SIDRA (`"..."`, `"-"`, `"X"`) são convertidos em `NULL` pelo guard `CASE WHEN d.v ~ '^-?[0-9]'`.
+
+### Adicionar uma nova transformação
+
+Crie dois arquivos na pasta `transformations/` e execute:
+
+```bash
+python scripts/transform.py transformations/minha_analise.toml
+```
+
+### Transformações incluídas
+
+| Arquivo TOML | Tabela de destino | Descrição |
+|---|---|---|
+| `transformations/snpc/ipca.toml` | `analytics.ipca` | IPCA completo |
+| `transformations/snpc/inpc.toml` | `analytics.inpc` | INPC completo |
+| `transformations/snpc/ipca15.toml` | `analytics.ipca15` | IPCA-15 completo |
+| `transformations/pibmunic.toml` | `analytics.pib_municipal` | PIB dos Municípios |
+| `transformations/populacao/estimapop.toml` | `analytics.estimativa_populacao` | Estimativas de população |
+| `transformations/populacao/censo_populacao.toml` | `analytics.censo_populacao` | Censo Demográfico |
+| `transformations/populacao/contagem_populacao.toml` | `analytics.contagem_populacao` | Contagem da População |
+| `transformations/ppm/rebanhos.toml` | `analytics.ppm_rebanhos` | Efetivo dos rebanhos |
+| `transformations/ppm/producao.toml` | `analytics.ppm_producao` | Produção de origem animal |
+| `transformations/ppm/exploracao.toml` | `analytics.ppm_exploracao` | Aquicultura e exploração |
+| `transformations/pam/lavouras_permanentes.toml` | `analytics.pam_lavouras_permanentes` | Lavouras permanentes |
+| `transformations/pam/lavouras_temporarias.toml` | `analytics.pam_lavouras_temporarias` | Lavouras temporárias |
+| `transformations/pevs/producao.toml` | `analytics.pevs_producao` | Extração vegetal e silvicultura |
+| `transformations/pevs/area_florestal.toml` | `analytics.pevs_area_florestal` | Área de florestas plantadas |
+
+---
+
 ## Fluxo de Dados
 
 ```
@@ -387,6 +500,19 @@ O método `run()` executa automaticamente toda a sequência:
 2. Busca e persiste os metadados
 3. Baixa todos os períodos disponíveis (com cache)
 4. Carrega os dados no PostgreSQL
+
+### `transform_runner.py` — Transformações SQL
+
+`TransformRunner` lê um par TOML + SQL e materializa a query como tabela ou view:
+
+```python
+from ibge_sidra_tabelas.transform_runner import TransformRunner
+from ibge_sidra_tabelas.config import Config
+from pathlib import Path
+
+runner = TransformRunner(Config(), Path("transformations/snpc/ipca.toml"))
+runner.run()
+```
 
 ### `config.py` — Gerenciamento de configuração
 
@@ -481,25 +607,35 @@ A suíte de testes cobre:
 ibge-sidra-tabelas/
 ├── src/ibge_sidra_tabelas/
 │   ├── __init__.py
-│   ├── toml_runner.py   # TomlScript — lê TOML e orquestra o pipeline
-│   ├── config.py        # Leitura de config.ini
-│   ├── database.py      # SQLAlchemy, carga, DDL/DCL
-│   ├── models.py        # ORM models (tabelas, localidades, dimensões, dados)
-│   ├── sidra.py         # Cliente da API SIDRA com retry e cache
-│   ├── storage.py       # Filesystem: leitura, escrita, filenames
-│   └── utils.py         # Produto cartesiano de dimensões
+│   ├── toml_runner.py        # TomlScript — lê TOML e orquestra o pipeline ETL
+│   ├── transform_runner.py   # TransformRunner — materializa TOML+SQL como tabela/view
+│   ├── config.py             # Leitura de config.ini
+│   ├── database.py           # SQLAlchemy, carga, DDL/DCL
+│   ├── models.py             # ORM models (tabelas, localidades, dimensões, dados)
+│   ├── sidra.py              # Cliente da API SIDRA com retry e cache
+│   ├── storage.py            # Filesystem: leitura, escrita, filenames
+│   └── utils.py              # Produto cartesiano de dimensões
 ├── scripts/
-│   ├── run.py           # Ponto de entrada: python scripts/run.py <arquivo.toml>
+│   ├── run.py                # Carga: python scripts/run.py <script.toml>
+│   ├── transform.py          # Transformação: python scripts/transform.py <transform.toml>
 │   ├── pibmunic.toml
 │   ├── populacao/
-│   ├── snpc/            # IPCA, IPCA-15, INPC
-│   ├── ppm/             # Pesquisa Pecuária Municipal
-│   ├── pam/             # Produção Agrícola Municipal
-│   └── pevs/            # Produção da Extração Vegetal e Silvicultura
+│   ├── snpc/                 # IPCA, IPCA-15, INPC
+│   ├── ppm/                  # Pesquisa Pecuária Municipal
+│   ├── pam/                  # Produção Agrícola Municipal
+│   └── pevs/                 # Produção da Extração Vegetal e Silvicultura
+├── transformations/          # Pares TOML + SQL para tabelas analíticas
+│   ├── pibmunic.toml + .sql
+│   ├── populacao/
+│   ├── snpc/
+│   ├── ppm/
+│   ├── pam/
+│   └── pevs/
 ├── tests/
-├── run-all.sh           # Runner: executar todos os scripts
-├── config.ini           # Configurações (não versionado)
-└── pyproject.toml       # Metadados e dependências do projeto
+├── run-all.sh                # Runner: executar todos os scripts de carga
+├── transform-all.sh          # Runner: executar todas as transformações
+├── config.ini                # Configurações (não versionado)
+└── pyproject.toml            # Metadados e dependências do projeto
 ```
 
 ---
