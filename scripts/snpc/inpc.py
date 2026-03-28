@@ -17,36 +17,62 @@ from ibge_sidra_tabelas.config import Config
 
 class INPCScript(BaseScript):
     def get_tabelas(self) -> list[dict[str, Any]]:
-        tabelas = []
-        sidra_tabelas_grandes = (
-            "1686",
-            "1690",
-            "22",
-            "23",
-            "653",
-            "654",
-            "2951",
-            "1100",
-            "7063",
-        )
-        territories = {"1": ["all"], "6": ["all"], "7": ["all"]}
-        variables = ["355", "357"]
-        for tabela_grande in sidra_tabelas_grandes:
-            if tabela_grande == "7063":
-                territories = {
-                    "1": ["all"],
-                    "6": ["all"],
-                    "7": ["all"],
-                    "71": ["all"],
-                }
-            _tabelas = [
-                {
-                    "sidra_tabela": tabela_grande,
-                    "territories": territories,
-                    "variables": variables,
-                }
-            ]
-            tabelas.extend(_tabelas)
+        tabelas = [
+            {
+                "sidra_tabela": "1686",
+                "territories": {"1": [], "6": [], "7": []},
+                "variables": ["44"],  # 44: INPC - Variação mensal
+                "classifications": {"72": []},  # C72: Geral, grupos, subgrupos, itens e subitens
+            },
+            {
+                "sidra_tabela": "1690",
+                "territories": {"1": [], "6": [], "7": []},
+                "variables": ["45"],  # 45: INPC - Peso mensal
+                "classifications": {"72": []},  # C72: Geral, grupos, subgrupos, itens e subitens
+            },
+            {
+                "sidra_tabela": "22",
+                "territories": {"1": [], "6": [], "7": []},
+                "variables": ["44"],  # 44: INPC - Variação mensal
+                "classifications": {"72": []},  # C72: Geral, grupos, subgrupos, itens e subitens
+            },
+            {
+                "sidra_tabela": "23",
+                "territories": {"1": [], "6": [], "7": []},
+                "variables": ["45"],  # 45: INPC - Peso mensal
+                "classifications": {"72": []},  # C72: Geral, grupos, subgrupos, itens e subitens
+            },
+            {
+                "sidra_tabela": "653",
+                "territories": {"1": [], "6": [], "7": []},
+                "variables": ["44"],  # 44: INPC - Variação mensal
+                "classifications": {"315": []},  # C315: Geral, grupo, subgrupo, item e subitem
+            },
+            {
+                "sidra_tabela": "654",
+                "territories": {"1": [], "6": [], "7": []},
+                "variables": ["45"],  # 45: INPC - Peso mensal
+                "classifications": {"315": []},  # C315: Geral, grupo, subgrupo, item e subitem
+            },
+            {
+                "sidra_tabela": "2951",
+                "territories": {"1": [], "6": [], "7": []},
+                "variables": ["44", "45"],  # 44: INPC - Variação mensal; 45: INPC - Peso mensal
+                "classifications": {"315": []},  # C315: Geral, grupo, subgrupo, item e subitem
+            },
+            {
+                "sidra_tabela": "1100",
+                "territories": {"1": [], "6": [], "7": []},
+                "variables": ["44", "45"],  # 44: INPC - Variação mensal; 45: INPC - Peso mensal
+                "classifications": {"315": []},  # C315: Geral, grupo, subgrupo, item e subitem
+            },
+            {
+                "sidra_tabela": "7063",
+                "territories": {"1": [], "6": [], "7": [], "71": []},
+                "variables": ["44", "45"],  # 44: INPC - Variação mensal; 45: INPC - Peso mensal
+                "classifications": {"315": []},  # C315: Geral, grupo, subgrupo, item e subitem
+            },
+        ]
         return tabelas
 
 

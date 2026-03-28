@@ -17,36 +17,62 @@ from ibge_sidra_tabelas.config import Config
 
 class IPCAScript(BaseScript):
     def get_tabelas(self) -> list[dict[str, Any]]:
-        tabelas = []
-        sidra_tabelas_grandes = (
-            "1692",
-            "1693",
-            "58",
-            "61",
-            "655",
-            "656",
-            "2938",
-            "1419",
-            "7060",
-        )
-        territories = {"1": ["all"], "6": ["all"], "7": ["all"]}
-        variables = ["355", "357"]
-        for tabela_grande in sidra_tabelas_grandes:
-            if tabela_grande == "7060":
-                territories = {
-                    "1": ["all"],
-                    "6": ["all"],
-                    "7": ["all"],
-                    "71": ["all"],
-                }
-            _tabelas = [
-                {
-                    "sidra_tabela": tabela_grande,
-                    "territories": territories,
-                    "variables": variables,
-                }
-            ]
-            tabelas.extend(_tabelas)
+        tabelas = [
+            {
+                "sidra_tabela": "1692",
+                "territories": {"1": [], "6": [], "7": []},
+                "variables": ["63"],  # 63: IPCA - Variação mensal
+                "classifications": {"72": []},  # C72: Geral, grupos, subgrupos, itens e subitens
+            },
+            {
+                "sidra_tabela": "1693",
+                "territories": {"1": [], "6": [], "7": []},
+                "variables": ["66"],  # 66: IPCA - Peso mensal
+                "classifications": {"72": []},  # C72: Geral, grupos, subgrupos, itens e subitens
+            },
+            {
+                "sidra_tabela": "58",
+                "territories": {"1": [], "6": [], "7": []},
+                "variables": ["63"],  # 63: IPCA - Variação mensal
+                "classifications": {"72": []},  # C72: Geral, grupos, subgrupos, itens e subitens
+            },
+            {
+                "sidra_tabela": "61",
+                "territories": {"1": [], "6": [], "7": []},
+                "variables": ["66"],  # 66: IPCA - Peso mensal
+                "classifications": {"72": []},  # C72: Geral, grupos, subgrupos, itens e subitens
+            },
+            {
+                "sidra_tabela": "655",
+                "territories": {"1": [], "6": [], "7": []},
+                "variables": ["63"],  # 63: IPCA - Variação mensal
+                "classifications": {"315": []},  # C315: Geral, grupo, subgrupo, item e subitem
+            },
+            {
+                "sidra_tabela": "656",
+                "territories": {"1": [], "6": [], "7": []},
+                "variables": ["66"],  # 66: IPCA - Peso mensal
+                "classifications": {"315": []},  # C315: Geral, grupo, subgrupo, item e subitem
+            },
+            {
+                "sidra_tabela": "2938",
+                "territories": {"1": [], "6": [], "7": []},
+                "variables": ["63", "66"],  # 63: IPCA - Variação mensal; 66: IPCA - Peso mensal
+                "classifications": {"315": []},  # C315: Geral, grupo, subgrupo, item e subitem
+            },
+            {
+                "sidra_tabela": "1419",
+                "territories": {"1": [], "6": [], "7": []},
+                "variables": ["63", "66"],  # 63: IPCA - Variação mensal; 66: IPCA - Peso mensal
+                "classifications": {"315": []},  # C315: Geral, grupo, subgrupo, item e subitem
+            },
+            {
+                "sidra_tabela": "7060",
+                "territories": {"1": [], "6": [], "7": [], "71": []},
+                "variables": ["63", "66"],  # 63: IPCA - Variação mensal; 66: IPCA - Peso mensal
+                "classifications": {"315": []},  # C315: Geral, grupo, subgrupo, item e subitem
+            },
+        ]
         return tabelas
 
 

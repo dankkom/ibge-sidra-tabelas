@@ -12,31 +12,32 @@ from ibge_sidra_tabelas.config import Config
 
 class IPCA15Script(BaseScript):
     def get_tabelas(self) -> list[dict[str, Any]]:
-        tabelas = []
-        sidra_tabelas_grandes = (
-            "1646",
-            "1387",
-            "1705",
-            "7062",
-        )
-        territories = {"1": ["all"], "6": ["all"], "7": ["all"]}
-        variables = ["355", "357"]
-        for tabela_grande in sidra_tabelas_grandes:
-            if tabela_grande == "7062":
-                territories = {
-                    "1": ["all"],
-                    "6": ["all"],
-                    "7": ["all"],
-                    "71": ["all"],
-                }
-            _tabelas = [
-                {
-                    "sidra_tabela": tabela_grande,
-                    "territories": territories,
-                    "variables": variables,
-                }
-            ]
-            tabelas.extend(_tabelas)
+        tabelas = [
+            {
+                "sidra_tabela": "1646",
+                "territories": {"1": [], "6": [], "7": []},
+                "variables": ["355", "357"],  # 355: IPCA15 - Variação mensal; 357: IPCA15 - Peso mensal
+                "classifications": {"315": []},  # C315: Geral, grupo, subgrupo, item e subitem
+            },
+            {
+                "sidra_tabela": "1387",
+                "territories": {"1": [], "6": [], "7": []},
+                "variables": ["355", "357"],  # 355: IPCA15 - Variação mensal; 357: IPCA15 - Peso mensal
+                "classifications": {"315": []},  # C315: Geral, grupo, subgrupo, item e subitem
+            },
+            {
+                "sidra_tabela": "1705",
+                "territories": {"1": [], "6": [], "7": []},
+                "variables": ["355", "357"],  # 355: IPCA15 - Variação mensal; 357: IPCA15 - Peso mensal
+                "classifications": {"315": []},  # C315: Geral, grupo, subgrupo, item e subitem
+            },
+            {
+                "sidra_tabela": "7062",
+                "territories": {"1": [], "6": [], "7": [], "71": []},
+                "variables": ["355", "357"],  # 355: IPCA15 - Variação mensal; 357: IPCA15 - Peso mensal
+                "classifications": {"315": []},  # C315: Geral, grupo, subgrupo, item e subitem
+            },
+        ]
         return tabelas
 
 
