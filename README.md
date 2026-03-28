@@ -31,8 +31,8 @@ Este projeto resolve exatamente esse problema: um pipeline ETL completo, com con
 - [Instalação](#instalação)
 - [Configuração](#configuração)
 - [Uso](#uso)
-  - [Executar um script](#executar-um-script)
-  - [Executar todos os scripts](#executar-todos-os-scripts)
+  - [Executar um pipeline](#executar-um-pipeline)
+  - [Executar todos os pipelines](#executar-todos-os-pipelines)
 - [Formato TOML](#formato-toml)
 - [Transformações](#transformações)
 - [Fluxo de Dados](#fluxo-de-dados)
@@ -64,8 +64,8 @@ O projeto segue uma arquitetura em camadas, com responsabilidades bem delimitada
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     scripts/*.toml                          │
-│      pib.toml  ·  ipca.toml  ·  censo.toml  · ...            │
+│              pipelines/**/fetch.toml                        │
+│   pib/fetch.toml  ·  ipca/fetch.toml  ·  censo/fetch.toml  │
 │            (declaração das tabelas a baixar)                │
 └──────────────────────────┬──────────────────────────────────┘
                            │ lido por
@@ -85,12 +85,12 @@ O projeto segue uma arquitetura em camadas, com responsabilidades bem delimitada
 │  (IBGE)     │   │  (ibge_sidra)  │   │ arquivos    │
 └─────────────┘   └────────┬───────┘   └─────────────┘
                            │
-       ┌───────────────────▼───────────────────┐
-       │       transformations/*.toml + *.sql   │
-       │          (pares TOML + SQL)            │
-       │    ipca.toml ← metadata                │
-       │    ipca.sql  ← SELECT denormalizado    │
-       └───────────────────┬───────────────────┘
+       ┌───────────────────▼────────────────────────┐
+       │    pipelines/**/transform.toml + .sql       │
+       │          (pares TOML + SQL)                 │
+       │    transform.toml ← metadata                │
+       │    transform.sql  ← SELECT denormalizado    │
+       └───────────────────┬────────────────────────┘
                            │ lido por
        ┌───────────────────▼───────────────────┐
        │       transform_runner.py              │
@@ -152,22 +152,22 @@ Isso garante que cada combinação de tabela × localidade × variável/classifi
 
 ## Séries Disponíveis
 
-| Arquivo TOML | Pesquisa | Tabelas SIDRA |
+| Pipeline | Pesquisa | Tabelas SIDRA |
 |---|---|---|
-| `scripts/pib_munic/pib.toml` | **PIB dos Municípios** | 5938 |
-| `scripts/populacao/estimapop.toml` | **Estimativas de População** | 6579 |
-| `scripts/populacao/censo_populacao.toml` | **Censo Demográfico** | 200 |
-| `scripts/populacao/contagem_populacao.toml` | **Contagem de População** | 305, 793 |
-| `scripts/snpc/ipca.toml` | **IPCA** | 1692, 1693, 58, 61, 655, 656, 2938, 1419, 7060 |
-| `scripts/snpc/ipca15.toml` | **IPCA-15** | 1646, 1387, 1705, 7062 |
-| `scripts/snpc/inpc.toml` | **INPC** | 1686, 1690, 22, 23, 653, 654, 2951, 1100, 7063 |
-| `scripts/ppm/rebanhos.toml` | **PPM — Rebanhos** | 73, 3939 |
-| `scripts/ppm/producao.toml` | **PPM — Produção animal** | 74, 3940 |
-| `scripts/ppm/exploracao.toml` | **PPM — Aquicultura e exploração** | 94, 95 |
-| `scripts/pam/lavouras_temporarias.toml` | **PAM — Lavouras temporárias** | 839, 1000, 1001, 1002, 1612 |
-| `scripts/pam/lavouras_permanentes.toml` | **PAM — Lavouras permanentes** | 1613 |
-| `scripts/pevs/producao.toml` | **PEVS — Produção florestal** | 289, 291 |
-| `scripts/pevs/area_florestal.toml` | **PEVS — Área florestal** | 5930 |
+| `pipelines/pib_munic/pib/` | **PIB dos Municípios** | 5938 |
+| `pipelines/populacao/estimapop/` | **Estimativas de População** | 6579 |
+| `pipelines/populacao/censo_populacao/` | **Censo Demográfico** | 200 |
+| `pipelines/populacao/contagem_populacao/` | **Contagem de População** | 305, 793 |
+| `pipelines/snpc/ipca/` | **IPCA** | 1692, 1693, 58, 61, 655, 656, 2938, 1419, 7060 |
+| `pipelines/snpc/ipca15/` | **IPCA-15** | 1646, 1387, 1705, 7062 |
+| `pipelines/snpc/inpc/` | **INPC** | 1686, 1690, 22, 23, 653, 654, 2951, 1100, 7063 |
+| `pipelines/ppm/rebanhos/` | **PPM — Rebanhos** | 73, 3939 |
+| `pipelines/ppm/producao/` | **PPM — Produção animal** | 74, 3940 |
+| `pipelines/ppm/exploracao/` | **PPM — Aquicultura e exploração** | 94, 95 |
+| `pipelines/pam/lavouras_temporarias/` | **PAM — Lavouras temporárias** | 839, 1000, 1001, 1002, 1612 |
+| `pipelines/pam/lavouras_permanentes/` | **PAM — Lavouras permanentes** | 1613 |
+| `pipelines/pevs/producao/` | **PEVS — Produção florestal** | 289, 291 |
+| `pipelines/pevs/area_florestal/` | **PEVS — Área florestal** | 5930 |
 
 ---
 
@@ -233,35 +233,45 @@ readonly_role = readonly_role
 
 ## Uso
 
-### Executar um script
+### Executar um pipeline
 
-Passe o caminho do arquivo TOML para `scripts/run.py`:
+Passe o diretório do pipeline para `scripts/run.py`:
 
 ```bash
 # PIB dos Municípios
-python scripts/run.py scripts/pib_munic/pib.toml
+python scripts/run.py pipelines/pib_munic/pib
 
 # IPCA
-python scripts/run.py scripts/snpc/ipca.toml
+python scripts/run.py pipelines/snpc/ipca
 
 # Estimativas de população
-python scripts/run.py scripts/populacao/estimapop.toml
+python scripts/run.py pipelines/populacao/estimapop
 
 # Lavouras temporárias (PAM)
-python scripts/run.py scripts/pam/lavouras_temporarias.toml
+python scripts/run.py pipelines/pam/lavouras_temporarias
 ```
 
-### Executar todos os scripts
+Por padrão, executa a carga (`fetch.toml`) e depois a transformação (`transform.toml`). Use as flags para controle:
 
 ```bash
-# Roda todos os arquivos TOML em scripts/ sequencialmente
+# Apenas carga (sem transformação)
+python scripts/run.py pipelines/snpc/ipca --fetch-only
+
+# Apenas transformação (sem carga)
+python scripts/run.py pipelines/snpc/ipca --transform-only
+```
+
+### Executar todos os pipelines
+
+```bash
+# Roda todos os pipelines em pipelines/ sequencialmente
 ./run-all.sh
 
 # Ou especifique um subdiretório
-./run-all.sh scripts/snpc
+./run-all.sh pipelines/snpc
 ```
 
-`run-all.sh` percorre recursivamente o diretório informado (padrão: `scripts/`), encontra todos os arquivos `.toml` e os passa para `scripts/run.py`. O código de saída de cada execução é registrado e o loop continua mesmo em caso de falha individual.
+`run-all.sh` percorre recursivamente o diretório informado (padrão: `pipelines/`), encontra todos os diretórios contendo `fetch.toml` ou `transform.toml`, e os passa para `scripts/run.py`. O código de saída de cada execução é registrado e o loop continua mesmo em caso de falha individual.
 
 ---
 
@@ -319,10 +329,10 @@ classifications = {81 = ["allxt"]}
 
 ### Adicionar uma nova série
 
-Basta criar um arquivo TOML na pasta correspondente e executá-lo com `scripts/run.py`:
+Crie um diretório de pipeline com um `fetch.toml` e execute com `scripts/run.py`:
 
 ```toml
-# scripts/minha_pesquisa.toml
+# pipelines/minha_pesquisa/meu_dataset/fetch.toml
 [[tabelas]]
 sidra_tabela = "9999"
 variables    = ["allxp"]
@@ -330,7 +340,7 @@ territories  = {6 = []}
 ```
 
 ```bash
-python scripts/run.py scripts/minha_pesquisa.toml
+python scripts/run.py pipelines/minha_pesquisa/meu_dataset
 ```
 
 ---
@@ -339,24 +349,25 @@ python scripts/run.py scripts/minha_pesquisa.toml
 
 Após a carga dos dados brutos no banco normalizado, a camada de transformação gera tabelas planas e desnormalizadas, prontas para consumo por ferramentas analíticas (Power BI, Excel, Metabase, etc.).
 
-Cada transformação é definida por um par de arquivos com o mesmo nome:
+Cada transformação é definida por um par de arquivos dentro do diretório do pipeline:
 
-- **`.toml`** — metadados: nome da tabela de destino, schema e estratégia de materialização
-- **`.sql`** — query SELECT que produz os dados denormalizados
+- **`transform.toml`** — metadados: nome da tabela de destino, schema e estratégia de materialização
+- **`transform.sql`** — query SELECT que produz os dados denormalizados
 
 ### Executar uma transformação
 
 ```bash
-python scripts/transform.py transformations/snpc/ipca.toml
+python scripts/run.py pipelines/snpc/ipca --transform-only
 ```
 
 ### Executar todas as transformações
 
 ```bash
-./transform-all.sh
+# Todos os pipelines (carga + transformação)
+./run-all.sh
 
-# Ou especifique um subdiretório
-./transform-all.sh transformations/snpc
+# Ou apenas um subdiretório
+./run-all.sh pipelines/snpc
 ```
 
 ### Formato TOML da transformação
@@ -399,30 +410,30 @@ Valores não numéricos do SIDRA (`"..."`, `"-"`, `"X"`) são convertidos em `NU
 
 ### Adicionar uma nova transformação
 
-Crie dois arquivos na pasta `transformations/` e execute:
+Crie `transform.toml` e `transform.sql` no diretório do pipeline e execute:
 
 ```bash
-python scripts/transform.py transformations/minha_analise.toml
+python scripts/run.py pipelines/minha_pesquisa/meu_dataset --transform-only
 ```
 
 ### Transformações incluídas
 
-| Arquivo TOML | Tabela de destino | Descrição |
+| Pipeline | Tabela de destino | Descrição |
 |---|---|---|
-| `transformations/snpc/ipca.toml` | `analytics.ipca` | IPCA completo |
-| `transformations/snpc/inpc.toml` | `analytics.inpc` | INPC completo |
-| `transformations/snpc/ipca15.toml` | `analytics.ipca15` | IPCA-15 completo |
-| `transformations/pib_munic/pib.toml` | `analytics.pib_municipal` | PIB dos Municípios |
-| `transformations/populacao/estimapop.toml` | `analytics.estimativa_populacao` | Estimativas de população |
-| `transformations/populacao/censo_populacao.toml` | `analytics.censo_populacao` | Censo Demográfico |
-| `transformations/populacao/contagem_populacao.toml` | `analytics.contagem_populacao` | Contagem da População |
-| `transformations/ppm/rebanhos.toml` | `analytics.ppm_rebanhos` | Efetivo dos rebanhos |
-| `transformations/ppm/producao.toml` | `analytics.ppm_producao` | Produção de origem animal |
-| `transformations/ppm/exploracao.toml` | `analytics.ppm_exploracao` | Aquicultura e exploração |
-| `transformations/pam/lavouras_permanentes.toml` | `analytics.pam_lavouras_permanentes` | Lavouras permanentes |
-| `transformations/pam/lavouras_temporarias.toml` | `analytics.pam_lavouras_temporarias` | Lavouras temporárias |
-| `transformations/pevs/producao.toml` | `analytics.pevs_producao` | Extração vegetal e silvicultura |
-| `transformations/pevs/area_florestal.toml` | `analytics.pevs_area_florestal` | Área de florestas plantadas |
+| `pipelines/snpc/ipca/` | `analytics.ipca` | IPCA completo |
+| `pipelines/snpc/inpc/` | `analytics.inpc` | INPC completo |
+| `pipelines/snpc/ipca15/` | `analytics.ipca15` | IPCA-15 completo |
+| `pipelines/pib_munic/pib/` | `analytics.pib_municipal` | PIB dos Municípios |
+| `pipelines/populacao/estimapop/` | `analytics.estimativa_populacao` | Estimativas de população |
+| `pipelines/populacao/censo_populacao/` | `analytics.censo_populacao` | Censo Demográfico |
+| `pipelines/populacao/contagem_populacao/` | `analytics.contagem_populacao` | Contagem da População |
+| `pipelines/ppm/rebanhos/` | `analytics.ppm_rebanhos` | Efetivo dos rebanhos |
+| `pipelines/ppm/producao/` | `analytics.ppm_producao` | Produção de origem animal |
+| `pipelines/ppm/exploracao/` | `analytics.ppm_exploracao` | Aquicultura e exploração |
+| `pipelines/pam/lavouras_permanentes/` | `analytics.pam_lavouras_permanentes` | Lavouras permanentes |
+| `pipelines/pam/lavouras_temporarias/` | `analytics.pam_lavouras_temporarias` | Lavouras temporárias |
+| `pipelines/pevs/producao/` | `analytics.pevs_producao` | Extração vegetal e silvicultura |
+| `pipelines/pevs/area_florestal/` | `analytics.pevs_area_florestal` | Área de florestas plantadas |
 
 ---
 
@@ -491,7 +502,7 @@ from ibge_sidra_tabelas.toml_runner import TomlScript
 from ibge_sidra_tabelas.config import Config
 from pathlib import Path
 
-script = TomlScript(Config(), Path("scripts/pib_munic/pib.toml"))
+script = TomlScript(Config(), Path("pipelines/pib_munic/pib/fetch.toml"))
 script.run()
 ```
 
@@ -510,7 +521,7 @@ from ibge_sidra_tabelas.transform_runner import TransformRunner
 from ibge_sidra_tabelas.config import Config
 from pathlib import Path
 
-runner = TransformRunner(Config(), Path("transformations/snpc/ipca.toml"))
+runner = TransformRunner(Config(), Path("pipelines/snpc/ipca/transform.toml"))
 runner.run()
 ```
 
@@ -616,24 +627,32 @@ ibge-sidra-tabelas/
 │   ├── storage.py            # Filesystem: leitura, escrita, filenames
 │   └── utils.py              # Produto cartesiano de dimensões
 ├── scripts/
-│   ├── run.py                # Carga: python scripts/run.py <script.toml>
-│   ├── transform.py          # Transformação: python scripts/transform.py <transform.toml>
-│   ├── pib_munic/           # PIB dos Municípios
+│   └── run.py                # CLI: python scripts/run.py <pipeline_dir>
+├── pipelines/                # Um diretório por dataset
+│   ├── pib_munic/pib/
+│   │   ├── fetch.toml        # Declaração das tabelas SIDRA a baixar
+│   │   ├── transform.toml    # Metadados da tabela analítica
+│   │   └── transform.sql     # SELECT que produz os dados denormalizados
 │   ├── populacao/
-│   ├── snpc/                 # IPCA, IPCA-15, INPC
-│   ├── ppm/                  # Pesquisa Pecuária Municipal
-│   ├── pam/                  # Produção Agrícola Municipal
-│   └── pevs/                 # Produção da Extração Vegetal e Silvicultura
-├── transformations/          # Pares TOML + SQL para tabelas analíticas
-│   ├── pib_munic/
-│   ├── populacao/
+│   │   ├── estimapop/
+│   │   ├── censo_populacao/
+│   │   └── contagem_populacao/
 │   ├── snpc/
+│   │   ├── ipca/
+│   │   ├── ipca15/
+│   │   └── inpc/
 │   ├── ppm/
+│   │   ├── rebanhos/
+│   │   ├── producao/
+│   │   └── exploracao/
 │   ├── pam/
+│   │   ├── lavouras_temporarias/
+│   │   └── lavouras_permanentes/
 │   └── pevs/
+│       ├── producao/
+│       └── area_florestal/
 ├── tests/
-├── run-all.sh                # Runner: executar todos os scripts de carga
-├── transform-all.sh          # Runner: executar todas as transformações
+├── run-all.sh                # Runner: executar todos os pipelines
 ├── config.ini                # Configurações (não versionado)
 └── pyproject.toml            # Metadados e dependências do projeto
 ```
