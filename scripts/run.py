@@ -15,33 +15,40 @@
 # You should have received a copy of the GNU General Public License
 # along with ibge-sidra-tabelas.  If not, see <https://www.gnu.org/licenses/>.
 
-from typing import Any, Iterable
+"""CLI entry point for running TOML-defined SIDRA data-loading scripts.
 
-from ibge_sidra_tabelas import sidra
-from ibge_sidra_tabelas.base import BaseScript
+Usage::
+
+    python scripts/run.py scripts/pibmunic.toml
+    python scripts/run.py scripts/snpc/ipca.toml
+"""
+
+import argparse
+import logging
+from pathlib import Path
+
 from ibge_sidra_tabelas.config import Config
-
-
-class LavourasPermanentesScript(BaseScript):
-    def get_tabelas(self) -> Iterable[dict[str, Any]]:
-        metadados = self.fetcher.sidra_client.get_agregado_metadados("1613")
-        tabelas = tuple(
-            {
-                "sidra_tabela": "1613",
-                "territories": {"6": []},
-                "variables": ["allxp"],
-                "classifications": classificacoes,
-            }
-            for classificacoes in sidra.unnest_classificacoes(
-                metadados.classificacoes
-            )
-        )
-        return tabelas
+from ibge_sidra_tabelas.toml_runner import TomlScript
 
 
 def main():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
+
+    parser = argparse.ArgumentParser(
+        description="Run a SIDRA data-loading pipeline from a TOML config file"
+    )
+    parser.add_argument(
+        "toml_file",
+        type=Path,
+        help="Path to the TOML file defining the tables to fetch",
+    )
+    args = parser.parse_args()
+
     config = Config()
-    script = LavourasPermanentesScript(config)
+    script = TomlScript(config, args.toml_file)
     script.run()
 
 
