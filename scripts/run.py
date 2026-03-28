@@ -15,12 +15,22 @@
 # You should have received a copy of the GNU General Public License
 # along with ibge-sidra-tabelas.  If not, see <https://www.gnu.org/licenses/>.
 
-"""CLI entry point for running TOML-defined SIDRA data-loading scripts.
+"""CLI entry point for running a dataset pipeline.
+
+Reads a pipeline directory containing fetch.toml and/or transform.toml
+and executes fetch → transform in sequence.  Each step is optional: if
+the corresponding file is absent it is silently skipped.
 
 Usage::
 
-    python scripts/run.py scripts/pibmunic.toml
-    python scripts/run.py scripts/snpc/ipca.toml
+    # Run both steps
+    python scripts/run.py pipelines/snpc/ipca
+
+    # Run only the fetch step
+    python scripts/run.py pipelines/snpc/ipca --fetch-only
+
+    # Run only the transform step
+    python scripts/run.py pipelines/snpc/ipca --transform-only
 """
 
 import argparse
@@ -29,6 +39,7 @@ from pathlib import Path
 
 from ibge_sidra_tabelas.config import Config
 from ibge_sidra_tabelas.toml_runner import TomlScript
+from ibge_sidra_tabelas.transform_runner import TransformRunner
 
 
 def main():
@@ -38,18 +49,41 @@ def main():
     )
 
     parser = argparse.ArgumentParser(
-        description="Run a SIDRA data-loading pipeline from a TOML config file"
+        description="Run fetch and/or transform for a pipeline directory",
     )
     parser.add_argument(
-        "toml_file",
+        "pipeline_dir",
         type=Path,
-        help="Path to the TOML file defining the tables to fetch",
+        help="Directory containing fetch.toml and/or transform.toml",
+    )
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--fetch-only",
+        action="store_true",
+        help="Only run the fetch step (skips transform.toml)",
+    )
+    group.add_argument(
+        "--transform-only",
+        action="store_true",
+        help="Only run the transform step (skips fetch.toml)",
     )
     args = parser.parse_args()
 
+    pipeline_dir = args.pipeline_dir
     config = Config()
-    script = TomlScript(config, args.toml_file)
-    script.run()
+
+    run_fetch = not args.transform_only
+    run_transform = not args.fetch_only
+
+    if run_fetch:
+        fetch_toml = pipeline_dir / "fetch.toml"
+        if fetch_toml.exists():
+            TomlScript(config, fetch_toml).run()
+
+    if run_transform:
+        transform_toml = pipeline_dir / "transform.toml"
+        if transform_toml.exists():
+            TransformRunner(config, transform_toml).run()
 
 
 if __name__ == "__main__":
