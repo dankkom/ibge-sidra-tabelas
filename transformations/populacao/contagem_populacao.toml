@@ -1,0 +1,5 @@
+[table]
+name        = "contagem_populacao"
+schema      = "analytics"
+strategy    = "replace"
+description = "Contagem da População - população residente por município"

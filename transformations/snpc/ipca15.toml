@@ -1,0 +1,5 @@
+[table]
+name        = "ipca15"
+schema      = "analytics"
+strategy    = "replace"
+description = "IPCA-15 - variação e peso mensal por categoria e localidade"

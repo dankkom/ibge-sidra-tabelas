@@ -1,0 +1,5 @@
+[table]
+name        = "ppm_exploracao"
+schema      = "analytics"
+strategy    = "replace"
+description = "PPM - aquicultura e exploração por município"
