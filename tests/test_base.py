@@ -20,27 +20,32 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from ibge_sidra_tabelas.base import BaseScript
+from ibge_sidra_tabelas.toml_runner import TomlScript
+
+
+SIMPLE_TOML = b"""
+[[tabelas]]
+sidra_tabela = "1"
+territories = {6 = ["1"]}
+"""
 
 
 class DummyConfig:
-    def __init__(self, schema=None):
-        self.db_schema = schema
+    def __init__(self):
+        self.db_schema = None
         self.data_dir = Path(tempfile.mkdtemp())
 
 
-class DummyScript(BaseScript):
-    def __init__(self, config):
-        super().__init__(config)
+def make_script() -> TomlScript:
+    tmp = Path(tempfile.mkdtemp())
+    toml_path = tmp / "test.toml"
+    toml_path.write_bytes(SIMPLE_TOML)
+    return TomlScript(DummyConfig(), toml_path)
 
-    def get_tabelas(self):
-        return [{"sidra_tabela": "1", "territories": {"6": ["1"]}}]
 
-
-class TestBaseScript(unittest.TestCase):
+class TestTomlScript(unittest.TestCase):
     def test_download_attaches_filepaths(self):
-        cfg = DummyConfig()
-        script = DummyScript(cfg)
+        script = make_script()
 
         class FakeFetcher:
             def download_table(self, **kwargs):
@@ -53,17 +58,17 @@ class TestBaseScript(unittest.TestCase):
         self.assertEqual(len(data_files), 1)
         self.assertIn("filepath", data_files[0])
 
-
     def test_load_metadata_reads_from_cache_when_file_exists(self):
         """load_metadata uses the cached file and never calls the API."""
-        cfg = DummyConfig()
-        script = DummyScript(cfg)
+        script = make_script()
         engine = mock.MagicMock()
 
         cached_path = mock.MagicMock()
         cached_path.exists.return_value = True
         fake_agregado = mock.MagicMock()
-        script.storage.get_metadata_filepath = mock.MagicMock(return_value=cached_path)
+        script.storage.get_metadata_filepath = mock.MagicMock(
+            return_value=cached_path
+        )
         script.storage.read_metadata = mock.MagicMock(return_value=fake_agregado)
         script.fetcher.fetch_metadata = mock.MagicMock()
 
@@ -76,14 +81,15 @@ class TestBaseScript(unittest.TestCase):
 
     def test_load_metadata_fetches_from_api_when_not_cached(self):
         """load_metadata calls the API and writes to disk when no cache exists."""
-        cfg = DummyConfig()
-        script = DummyScript(cfg)
+        script = make_script()
         engine = mock.MagicMock()
 
         missing_path = mock.MagicMock()
         missing_path.exists.return_value = False
         fake_agregado = mock.MagicMock()
-        script.storage.get_metadata_filepath = mock.MagicMock(return_value=missing_path)
+        script.storage.get_metadata_filepath = mock.MagicMock(
+            return_value=missing_path
+        )
         script.fetcher.fetch_metadata = mock.MagicMock(return_value=fake_agregado)
         script.storage.write_metadata = mock.MagicMock()
 
@@ -96,14 +102,17 @@ class TestBaseScript(unittest.TestCase):
 
     def test_load_metadata_deduplicates_repeated_table_ids(self):
         """load_metadata processes each unique sidra_tabela only once."""
-        cfg = DummyConfig()
-        script = DummyScript(cfg)
+        script = make_script()
         engine = mock.MagicMock()
 
         cached_path = mock.MagicMock()
         cached_path.exists.return_value = True
-        script.storage.get_metadata_filepath = mock.MagicMock(return_value=cached_path)
-        script.storage.read_metadata = mock.MagicMock(return_value=mock.MagicMock())
+        script.storage.get_metadata_filepath = mock.MagicMock(
+            return_value=cached_path
+        )
+        script.storage.read_metadata = mock.MagicMock(
+            return_value=mock.MagicMock()
+        )
 
         with mock.patch("ibge_sidra_tabelas.database.save_agregado") as save_mock:
             script.load_metadata(engine, [
