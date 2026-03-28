@@ -15,7 +15,7 @@ Este projeto resolve exatamente esse problema: um pipeline ETL completo, com con
 - **Zero redundância:** nomes de arquivo determinísticos garantem que a mesma requisição nunca seja baixada duas vezes.
 - **Desempenho real:** downloads multi-threaded + carga via `COPY` do PostgreSQL são ordens de magnitude mais rápidos que abordagens ingênuas.
 - **Confiabilidade:** retry com backoff exponencial lida com instabilidades da API sem interromper o pipeline.
-- **Extensibilidade:** basta herdar `BaseScript` e declarar quais tabelas baixar — toda a orquestração é reutilizável.
+- **Declarativo:** cada pesquisa é descrita em um arquivo TOML — sem código Python para adicionar novas séries.
 - **Banco normalizado:** dados separados em quatro tabelas relacionais com constraints de unicidade e índices otimizados para consultas analíticas.
 
 ---
@@ -32,10 +32,8 @@ Este projeto resolve exatamente esse problema: um pipeline ETL completo, com con
 - [Uso](#uso)
   - [Executar um script](#executar-um-script)
   - [Executar todos os scripts](#executar-todos-os-scripts)
-  - [Buscar apenas metadados](#buscar-apenas-metadados)
-  - [Exportar dimensões para CSV](#exportar-dimensões-para-csv)
+- [Formato TOML](#formato-toml)
 - [Fluxo de Dados](#fluxo-de-dados)
-- [Referência dos Scripts](#referência-dos-scripts)
 - [Módulos Internos](#módulos-internos)
 - [Testes](#testes)
 
@@ -63,14 +61,14 @@ O projeto segue uma arquitetura em camadas, com responsabilidades bem delimitada
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                        Scripts ETL                          │
-│           pibmunic.py  ·  ipca.py  ·  censo.py  · ...       │
-│                  (herdam BaseScript)                        │
+│                     scripts/*.toml                          │
+│     pibmunic.toml  ·  ipca.toml  ·  censo.toml  · ...       │
+│            (declaração das tabelas a baixar)                │
 └──────────────────────────┬──────────────────────────────────┘
-                           │ declara get_tabelas()
+                           │ lido por
 ┌──────────────────────────▼──────────────────────────────────┐
-│                       base.py                               │
-│          Orquestração: download → metadata → load           │
+│                    toml_runner.py                           │
+│           TomlScript: download → metadata → load            │
 └──────┬───────────────────┬──────────────────┬───────────────┘
        │                   │                  │
 ┌──────▼──────┐   ┌────────▼───────┐   ┌──────▼──────────────┐
@@ -89,7 +87,7 @@ O projeto segue uma arquitetura em camadas, com responsabilidades bem delimitada
 
 - **Determinismo:** o mesmo conjunto de parâmetros sempre gera o mesmo nome de arquivo — re-execuções são seguras e baratas.
 - **Dois passos de carga:** o primeiro escaneamento coleta chaves únicas de localidades e dimensões; o segundo transmite os dados via COPY, evitando acúmulo em memória.
-- **Abstração via BaseScript:** scripts concretos definem apenas `get_tabelas()` — toda a lógica de pipeline é herdada.
+- **Declarativo:** scripts são arquivos TOML estáticos — toda a lógica de pipeline está em `toml_runner.py`.
 
 ---
 
@@ -132,24 +130,22 @@ Isso garante que cada combinação de tabela × localidade × variável/classifi
 
 ## Séries Disponíveis
 
-Os scripts incluídos cobrem as principais pesquisas do IBGE:
-
-| Pasta/Script | Pesquisa | Tabelas SIDRA |
+| Arquivo TOML | Pesquisa | Tabelas SIDRA |
 |---|---|---|
-| `scripts/pibmunic.py` | **PIB dos Municípios** | 5938 |
-| `scripts/populacao/estimapop.py` | **Estimativas de População** | 6579 |
-| `scripts/populacao/censo_populacao.py` | **Censo Demográfico** | 22, 23 |
-| `scripts/populacao/contagem_populacao.py` | **Contagem de População** | 2951, 2952 |
-| `scripts/snpc/ipca.py` | **IPCA** (índice de inflação) | 1692, 1693, 58, 61, 655, 656, 2938, 1419, 7060 |
-| `scripts/snpc/ipca15.py` | **IPCA-15** | múltiplas tabelas |
-| `scripts/snpc/inpc.py` | **INPC** | múltiplas tabelas |
-| `scripts/ppm/rebanhos.py` | **PPM — Rebanhos** | 74, 3940 |
-| `scripts/ppm/producao.py` | **PPM — Produção animal** | múltiplas tabelas |
-| `scripts/ppm/exploracao.py` | **PPM — Exploração** | múltiplas tabelas |
-| `scripts/pam/lavouras_temporarias.py` | **PAM — Lavouras temporárias** | 839, 1000, 1001, 1002, 1612 |
-| `scripts/pam/lavouras_permanentes.py` | **PAM — Lavouras permanentes** | múltiplas tabelas |
-| `scripts/pevs/producao.py` | **PEVS — Produção florestal** | múltiplas tabelas |
-| `scripts/pevs/area_florestal.py` | **PEVS — Área florestal** | múltiplas tabelas |
+| `scripts/pibmunic.toml` | **PIB dos Municípios** | 5938 |
+| `scripts/populacao/estimapop.toml` | **Estimativas de População** | 6579 |
+| `scripts/populacao/censo_populacao.toml` | **Censo Demográfico** | 200 |
+| `scripts/populacao/contagem_populacao.toml` | **Contagem de População** | 305, 793 |
+| `scripts/snpc/ipca.toml` | **IPCA** | 1692, 1693, 58, 61, 655, 656, 2938, 1419, 7060 |
+| `scripts/snpc/ipca15.toml` | **IPCA-15** | 1646, 1387, 1705, 7062 |
+| `scripts/snpc/inpc.toml` | **INPC** | 1686, 1690, 22, 23, 653, 654, 2951, 1100, 7063 |
+| `scripts/ppm/rebanhos.toml` | **PPM — Rebanhos** | 73, 3939 |
+| `scripts/ppm/producao.toml` | **PPM — Produção animal** | 74, 3940 |
+| `scripts/ppm/exploracao.toml` | **PPM — Aquicultura e exploração** | 94, 95 |
+| `scripts/pam/lavouras_temporarias.toml` | **PAM — Lavouras temporárias** | 839, 1000, 1001, 1002, 1612 |
+| `scripts/pam/lavouras_permanentes.toml` | **PAM — Lavouras permanentes** | 1613 |
+| `scripts/pevs/producao.toml` | **PEVS — Produção florestal** | 289, 291 |
+| `scripts/pevs/area_florestal.toml` | **PEVS — Área florestal** | 5930 |
 
 ---
 
@@ -217,50 +213,100 @@ readonly_role = readonly_role
 
 ### Executar um script
 
-Cada script baixa e carrega no banco os dados de uma pesquisa específica:
+Passe o caminho do arquivo TOML para `scripts/run.py`:
 
 ```bash
 # PIB dos Municípios
-python scripts/pibmunic.py
+python scripts/run.py scripts/pibmunic.toml
 
 # IPCA
-python scripts/snpc/ipca.py
+python scripts/run.py scripts/snpc/ipca.toml
 
 # Estimativas de população
-python scripts/populacao/estimapop.py
+python scripts/run.py scripts/populacao/estimapop.toml
 
 # Lavouras temporárias (PAM)
-python scripts/pam/lavouras_temporarias.py
+python scripts/run.py scripts/pam/lavouras_temporarias.toml
 ```
 
 ### Executar todos os scripts
 
 ```bash
-# Roda todos os scripts em scripts/ sequencialmente
+# Roda todos os arquivos TOML em scripts/ sequencialmente
 ./run-all.sh scripts
 ```
 
 O script registra o código de saída de cada execução e continua mesmo em caso de falha individual.
 
-### Buscar apenas metadados
+---
 
-Útil para inspecionar os metadados de uma tabela SIDRA antes de baixar os dados:
+## Formato TOML
 
-```bash
-python fetch-metadata.py 5938
+Cada arquivo TOML contém uma lista de entradas `[[tabelas]]`. Cada entrada corresponde a uma chamada à API SIDRA:
+
+```toml
+[[tabelas]]
+sidra_tabela = "5938"           # ID da tabela no SIDRA
+variables    = ["37", "498"]    # IDs das variáveis ("allxp" para todas)
+territories  = {6 = ["all"]}   # nível territorial → lista de IDs
+
+[tabelas.classifications]       # classificações e categorias (opcional)
+315 = []                        # lista vazia = todas as categorias
 ```
 
-Salva o JSON de metadados localmente e persiste no banco de dados.
+**Níveis territoriais comuns:**
 
-### Exportar dimensões para CSV
+| Código | Descrição |
+|---|---|
+| `1` | Brasil |
+| `2` | Grandes Regiões |
+| `3` | Unidades da Federação |
+| `6` | Municípios |
+| `7` | Regiões Metropolitanas |
+| `71` | Regiões Metropolitanas e RIDEs |
 
-Gera um CSV com todas as combinações de variável × classificação de uma tabela:
+### Flags especiais
 
-```bash
-python export-dimensao.py 5938 --output dimensoes_pib.csv
+**`unnest_classifications = true`**
+
+Busca os metadados da tabela em tempo de execução e gera uma requisição para cada combinação de classificação × categoria:
+
+```toml
+[[tabelas]]
+sidra_tabela = "1613"
+variables    = ["allxp"]
+territories  = {6 = []}
+unnest_classifications = true
 ```
 
-O arquivo gerado contém todas as dimensões possíveis com seus respectivos códigos e nomes, útil para documentação e exploração dos dados.
+**`split_variables = true`**
+
+Emite uma requisição separada para cada variável listada em `variables`:
+
+```toml
+[[tabelas]]
+sidra_tabela   = "1002"
+variables      = ["109", "216", "214", "112"]
+split_variables = true
+territories    = {6 = []}
+classifications = {81 = ["allxt"]}
+```
+
+### Adicionar uma nova série
+
+Basta criar um arquivo TOML na pasta correspondente e executá-lo com `scripts/run.py`:
+
+```toml
+# scripts/minha_pesquisa.toml
+[[tabelas]]
+sidra_tabela = "9999"
+variables    = ["allxp"]
+territories  = {6 = []}
+```
+
+```bash
+python scripts/run.py scripts/minha_pesquisa.toml
+```
 
 ---
 
@@ -318,26 +364,19 @@ API SIDRA (IBGE)
 
 ---
 
-## Referência dos Scripts
+## Módulos Internos
 
-### Criando um script personalizado
+### `toml_runner.py` — Pipeline principal
 
-Basta herdar `BaseScript` e implementar `get_tabelas()`:
+`TomlScript` lê o TOML, expande entradas dinâmicas e orquestra todo o pipeline:
 
 ```python
-from ibge_sidra_tabelas.base import BaseScript
+from ibge_sidra_tabelas.toml_runner import TomlScript
+from ibge_sidra_tabelas.config import Config
+from pathlib import Path
 
-class MeuScript(BaseScript):
-    def get_tabelas(self):
-        yield {
-            "sidra_tabela": 5938,          # ID da tabela no SIDRA
-            "territories": {6: ["all"]},   # nível 6 = municípios, "all" = todos
-            "variables": [37, 498, 513],   # IDs das variáveis
-            "classifications": {},         # classificações adicionais (opcional)
-        }
-
-if __name__ == "__main__":
-    MeuScript().run()
+script = TomlScript(Config(), Path("scripts/pibmunic.toml"))
+script.run()
 ```
 
 O método `run()` executa automaticamente toda a sequência:
@@ -346,29 +385,6 @@ O método `run()` executa automaticamente toda a sequência:
 3. Baixa todos os períodos disponíveis (com cache)
 4. Carrega os dados no PostgreSQL
 
-### Parâmetros de `get_tabelas()`
-
-| Chave | Tipo | Descrição |
-|---|---|---|
-| `sidra_tabela` | `int` | ID da tabela no SIDRA (ex: `5938`) |
-| `territories` | `dict[int, list[str]]` | Nível territorial → lista de IDs ou `["all"]` |
-| `variables` | `list[int]` | IDs das variáveis a baixar. Use `["all"]` para todas |
-| `classifications` | `dict` | Classificações e categorias. Vazio para sem filtro |
-
-**Níveis territoriais comuns:**
-
-| Código | Descrição |
-|---|---|
-| `1` | Brasil |
-| `2` | Grandes Regiões |
-| `3` | Unidades da Federação |
-| `6` | Municípios |
-| `7` | Regiões Metropolitanas |
-
----
-
-## Módulos Internos
-
 ### `config.py` — Gerenciamento de configuração
 
 Lê `config.ini` e expõe credenciais do banco, diretório de dados e opções de logging.
@@ -376,7 +392,7 @@ Lê `config.ini` e expõe credenciais do banco, diretório de dados e opções d
 ```python
 from ibge_sidra_tabelas.config import Config
 config = Config("config.ini")
-print(config.database.host)   # "localhost"
+print(config.database.host)    # "localhost"
 print(config.storage.data_dir) # "data"
 ```
 
@@ -385,12 +401,11 @@ print(config.storage.data_dir) # "data"
 ```python
 from ibge_sidra_tabelas.sidra import Fetcher
 
-with Fetcher(storage, config=config) as fetcher:
+with Fetcher(config=config) as fetcher:
     filepaths = fetcher.download_table(
-        sidra_tabela=5938,
-        territories={6: ["all"]},
-        variables=[37, 498],
-        classifications={},
+        sidra_tabela="5938",
+        territories={"6": ["all"]},
+        variables=["37", "498"],
     )
 ```
 
@@ -421,8 +436,6 @@ t5938_p202301_f3_n6-all_v37.498_c0_m1717200000.json
 from ibge_sidra_tabelas.database import get_engine, load_dados
 
 engine = get_engine(config)
-
-# Carrega todos os arquivos de uma tabela
 load_dados(engine, storage, data_files)
 ```
 
@@ -433,11 +446,10 @@ A carga usa o protocolo COPY do PostgreSQL via `psycopg3`, com inserção em tab
 ```python
 from ibge_sidra_tabelas.utils import unnest_dimensoes
 
-# Expande variáveis × classificações em produto cartesiano
 dimensoes = list(unnest_dimensoes(variaveis, classificacoes))
 ```
 
-Gera todas as combinações possíveis de variável × categoria de classificação, com resolução de unidade de medida (categoria > variável).
+Gera todas as combinações possíveis de variável × categoria de classificação.
 
 ---
 
@@ -453,7 +465,7 @@ A suíte de testes cobre:
 |---|---|
 | `tests/test_config.py` | Carregamento de config, setup de logging |
 | `tests/test_storage.py` | Geração de nomes, leitura/escrita, caminhos de metadados |
-| `tests/test_base.py` | Cache de metadados, deduplicação, attachamento de filepaths |
+| `tests/test_base.py` | Cache de metadados, deduplicação, download com filepaths |
 | `tests/test_sidra.py` | Retry logic, unnesting de classificações, context manager |
 | `tests/test_database.py` | Limpeza de dados, criação de engine, builders DDL/DCL |
 | `tests/test_utils.py` | Produto cartesiano de dimensões, resolução de unidade |
@@ -466,7 +478,7 @@ A suíte de testes cobre:
 ibge-sidra-tabelas/
 ├── src/ibge_sidra_tabelas/
 │   ├── __init__.py
-│   ├── base.py          # BaseScript — orquestração do pipeline
+│   ├── toml_runner.py   # TomlScript — lê TOML e orquestra o pipeline
 │   ├── config.py        # Leitura de config.ini
 │   ├── database.py      # SQLAlchemy, carga, DDL/DCL
 │   ├── models.py        # ORM models (tabelas, localidades, dimensões, dados)
@@ -474,15 +486,14 @@ ibge-sidra-tabelas/
 │   ├── storage.py       # Filesystem: leitura, escrita, filenames
 │   └── utils.py         # Produto cartesiano de dimensões
 ├── scripts/
-│   ├── pibmunic.py
+│   ├── run.py           # Ponto de entrada: python scripts/run.py <arquivo.toml>
+│   ├── pibmunic.toml
 │   ├── populacao/
 │   ├── snpc/            # IPCA, IPCA-15, INPC
 │   ├── ppm/             # Pesquisa Pecuária Municipal
 │   ├── pam/             # Produção Agrícola Municipal
 │   └── pevs/            # Produção da Extração Vegetal e Silvicultura
 ├── tests/
-├── fetch-metadata.py    # Utilitário: buscar metadados de uma tabela
-├── export-dimensao.py   # Utilitário: exportar dimensões para CSV
 ├── run-all.sh           # Runner: executar todos os scripts
 ├── config.ini           # Configurações (não versionado)
 └── pyproject.toml       # Metadados e dependências do projeto
