@@ -33,7 +33,7 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Generator
+from typing import Any, Generator
 
 import httpx
 from sidra_fetcher.agregados import Agregado, Classificacao
