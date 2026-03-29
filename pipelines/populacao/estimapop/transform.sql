@@ -1,14 +1,7 @@
 SELECT
-    d.d3c                                                   AS periodo,
-    l.nc                                                    AS nivel_territorial_id,
-    l.nn                                                    AS nivel_territorial,
-    l.d1c                                                   AS localidade_id,
-    l.d1n                                                   AS localidade,
-    dim.d2c                                                 AS variavel_id,
-    dim.d2n                                                 AS variavel,
-    dim.mc                                                  AS unidade_id,
-    dim.mn                                                  AS unidade,
-    CASE WHEN d.v ~ '^-?[0-9]' THEN d.v::numeric END       AS valor
+    d.d3c::smallint                                         AS ano,
+    l.d1c                                                   AS id_municipio,
+    CASE WHEN d.v ~ '^-?[0-9]' THEN d.v::numeric END       AS n_pessoas
 FROM dados d
 JOIN dimensao   dim ON d.dimensao_id   = dim.id
 JOIN localidade l   ON d.localidade_id = l.id
