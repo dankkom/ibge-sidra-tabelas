@@ -376,15 +376,25 @@ python scripts/run.py pipelines/snpc/ipca --transform-only
 [table]
 name        = "ipca"           # Nome da tabela de destino
 schema      = "analytics"      # Schema de destino (criado automaticamente)
-strategy    = "replace"        # Estratégia de materialização
+strategy    = "replace"        # Estratégia de materialização ("replace" ou "view")
 description = "IPCA - variação e peso mensal por categoria e localidade"
+primary_key = ["periodo", "localidade_id", "variavel", "categoria"] # Opcional: define PK após carga
+
+[[table.indexes]]             # Opcional: define índices adicionais
+name    = "idx_ipca_periodo"
+columns = ["periodo"]
+
+[[table.indexes]]
+name    = "idx_ipca_localidade"
+columns = ["localidade"]
+unique  = false
 ```
 
 **Estratégias disponíveis:**
 
 | Estratégia | Comportamento | Quando usar |
 |---|---|---|
-| `replace` | `DROP TABLE` + `CREATE TABLE AS` | Import em Power BI / Excel (refresh completo) |
+| `replace` | `DROP` + `CREATE AS` + `PK/Indexes` | Import em Power BI / Excel (refresh completo) |
 | `view` | `CREATE OR REPLACE VIEW` | Conexões live (zero storage, sempre atualizado) |
 
 ### SQL da transformação
@@ -471,11 +481,12 @@ API SIDRA (IBGE)
          │    localidades e dimensões             │
          │  → upsert em lotes de 5.000 linhas     │
          │  → constrói lookup dicts em memória    │
-         │                                        │
          │  Passo 2: scan JSON novamente          │
          │  → resolve IDs via lookup              │
+         │  → usa data de modificação da API      │
          │  → stream via COPY para staging table  │
          │  → INSERT com ON CONFLICT DO NOTHING   │
+
          └───────────────┬────────────────────────┘
                          │
                          ▼

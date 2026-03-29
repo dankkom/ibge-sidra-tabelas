@@ -368,7 +368,7 @@ def load_dados(
                 with cur.copy(_STAGING_COPY) as copy:
                     for data_file in table_files:
                         filepath = data_file["filepath"]
-                        modificacao = filepath.stem.split("@")[-1]
+                        modificacao = data_file["modificacao"]
                         rows = storage.read_data(filepath)
                         for r in rows:
                             if r.get("V") is None:

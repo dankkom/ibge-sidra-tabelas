@@ -125,8 +125,8 @@ class TomlScript:
         """Download all tables and return a list of data-file descriptors."""
         data_files = []
         for tabela in tabelas:
-            for filepath in self.fetcher.download_table(**tabela):
-                data_files.append(tabela | {"filepath": filepath})
+            for result in self.fetcher.download_table(**tabela):
+                data_files.append(tabela | result)
         return data_files
 
     def load_metadata(

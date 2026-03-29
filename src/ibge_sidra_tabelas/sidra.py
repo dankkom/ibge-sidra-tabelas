@@ -93,7 +93,7 @@ class Fetcher:
         territories: dict[str, list[str]],
         variables: list[str] | None = None,
         classifications: dict[str, list[str]] | None = None,
-    ) -> list[Path]:
+    ) -> list[dict[str, Any]]:
         """Download all periods of a SIDRA table and save them to disk.
 
         For each period returned by the SIDRA API this method builds a
@@ -113,8 +113,7 @@ class Fetcher:
                 classification.
 
         Returns:
-            A list of ``pathlib.Path`` objects pointing to the files
-            created or found on disk.
+            A list of dicts with keys "filepath" (Path) and "modificacao" (str).
         """
 
         if variables is None:
@@ -151,15 +150,18 @@ class Fetcher:
 
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             futures = [
-                executor.submit(self._download_period, parameter, modification)
+                (executor.submit(self._download_period, parameter, modification), modification)
                 for parameter, modification in period_params
             ]
 
-        results: list[Path] = []
+        results: list[dict[str, Any]] = []
         errors: list[Exception] = []
-        for f in futures:
+        for f, modification in futures:
             try:
-                results.append(f.result())
+                results.append({
+                    "filepath": f.result(),
+                    "modificacao": modification,
+                })
             except Exception as e:
                 logger.error("Period download failed: %s", e)
                 errors.append(e)

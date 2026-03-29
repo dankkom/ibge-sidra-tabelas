@@ -75,6 +75,8 @@ class TransformRunner:
         name = table_config["name"]
         schema = table_config["schema"]
         strategy = table_config.get("strategy", "replace")
+        primary_key = table_config.get("primary_key")
+        indexes = table_config.get("indexes", [])
 
         sql_path = self.toml_path.with_suffix(".sql")
         query = sql_path.read_text(encoding="utf-8").strip()
@@ -102,6 +104,20 @@ class TransformRunner:
                 conn.exec_driver_sql(
                     f"CREATE TABLE {qualified} AS\n{query}"
                 )
+
+                if primary_key:
+                    pk_cols = ", ".join(f'"{c}"' for c in primary_key)
+                    conn.exec_driver_sql(
+                        f'ALTER TABLE {qualified} ADD PRIMARY KEY ({pk_cols})'
+                    )
+
+                for idx in indexes:
+                    idx_name = idx["name"]
+                    idx_cols = ", ".join(f'"{c}"' for c in idx["columns"])
+                    unique = "UNIQUE" if idx.get("unique") else ""
+                    conn.exec_driver_sql(
+                        f'CREATE {unique} INDEX "{idx_name}" ON {qualified} ({idx_cols})'
+                    )
             else:
                 raise ValueError(
                     f"Unknown strategy {strategy!r} in {self.toml_path}"
