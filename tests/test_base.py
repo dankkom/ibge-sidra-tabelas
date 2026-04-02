@@ -22,7 +22,6 @@ from unittest import mock
 
 from ibge_sidra_tabelas.toml_runner import TomlScript
 
-
 SIMPLE_TOML = b"""
 [[tabelas]]
 sidra_tabela = "1"
