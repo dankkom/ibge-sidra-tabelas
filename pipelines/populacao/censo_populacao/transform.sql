@@ -5,5 +5,5 @@ SELECT
 FROM dados d
 JOIN dimensao   dim ON d.dimensao_id   = dim.id
 JOIN localidade l   ON d.localidade_id = l.id
-WHERE d.sidra_tabela_id = '200'
+WHERE d.sidra_tabela_id IN ('200', '4709')
   AND d.ativo = true
