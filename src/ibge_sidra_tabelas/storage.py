@@ -156,7 +156,18 @@ class Storage:
         return agregado
 
     def read_data_dir(self, dirpath: Path) -> list[dict]:
-        data = []
+        # Group files by base name (before the @modification suffix) and keep
+        # only the file with the latest modification per parameter combination.
+        latest: dict[str, tuple[Path, str]] = {}
         for f in dirpath.glob("*.json"):
+            stem = f.stem
+            if "@" in stem:
+                base, mod = stem.rsplit("@", 1)
+            else:
+                base, mod = stem, ""
+            if base not in latest or mod > latest[base][1]:
+                latest[base] = (f, mod)
+        data = []
+        for f, _ in latest.values():
             data.extend(self.read_data(f))
         return data

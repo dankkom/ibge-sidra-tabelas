@@ -88,6 +88,7 @@ class Dimensao(Base):
             "d8c",
             "d9c",
             name="uq_dimensao",
+            postgresql_nulls_not_distinct=True,
         ),
     )
 

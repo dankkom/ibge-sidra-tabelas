@@ -232,6 +232,20 @@ _STAGING_INSERT = (
     " ON CONFLICT DO NOTHING"
 )
 
+_STAGING_DEACTIVATE = (
+    "UPDATE dados d"
+    " SET ativo = FALSE"
+    " FROM ("
+    "  SELECT sidra_tabela_id, d3c, MAX(modificacao) AS max_mod"
+    "  FROM _staging_dados"
+    "  GROUP BY sidra_tabela_id, d3c"
+    " ) latest"
+    " WHERE d.sidra_tabela_id = latest.sidra_tabela_id"
+    "  AND d.d3c = latest.d3c"
+    "  AND d.modificacao < latest.max_mod"
+    "  AND d.ativo = TRUE"
+)
+
 _STAGING_COPY = (
     "COPY _staging_dados"
     " (sidra_tabela_id, localidade_id, dimensao_id,"
@@ -409,6 +423,8 @@ def load_dados(
 
                 cur.execute(_STAGING_INSERT)
                 n_inserted = cur.rowcount
+                cur.execute(_STAGING_DEACTIVATE)
+                n_deactivated = cur.rowcount
 
             conn.commit()
 
@@ -423,8 +439,8 @@ def load_dados(
                 missing_locs, sidra_tabela_id,
             )
         logger.info(
-            "Loaded %d/%d rows into dados for table %s",
-            n_inserted, n_rows, sidra_tabela_id,
+            "Loaded %d/%d rows into dados for table %s (%d deactivated)",
+            n_inserted, n_rows, sidra_tabela_id, n_deactivated,
         )
 
 
