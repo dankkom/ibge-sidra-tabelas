@@ -14,6 +14,15 @@ sidra_tabela = "1"
 territories = {6 = ["1"]}
 """
 
+PARTIAL_UNNEST_TOML = b"""
+[[tabelas]]
+sidra_tabela = "5938"
+variables = ["allxp"]
+territories = {6 = []}
+classifications = {81 = ["allxt"]}
+unnest_classifications = ["87"]
+"""
+
 
 class DummyConfig:
     def __init__(self):
@@ -121,6 +130,40 @@ class TestTomlScript(unittest.TestCase):
             )
 
         self.assertEqual(save_mock.call_count, 1)
+
+
+    def test_get_tabelas_partial_unnest(self):
+        """unnest_classifications=[list] unnests only named IDs, merges static classifications."""
+        tmp = Path(tempfile.mkdtemp())
+        toml_path = tmp / "test.toml"
+        toml_path.write_bytes(PARTIAL_UNNEST_TOML)
+        script = TomlScript(DummyConfig(), toml_path)
+
+        class _Cat:
+            def __init__(self, id):
+                self.id = id
+
+        class _Cls:
+            def __init__(self, id, cat_ids):
+                self.id = id
+                self.categorias = [_Cat(c) for c in cat_ids]
+
+        class _Meta:
+            classificacoes = [_Cls(87, [10, 20]), _Cls(99, [5])]
+
+        script.fetcher.sidra_client = mock.MagicMock()
+        script.fetcher.sidra_client.get_agregado_metadados.return_value = _Meta()
+
+        result = list(script.get_tabelas())
+
+        # Two categories of 87, each merged with static 81
+        self.assertEqual(len(result), 2)
+        for entry in result:
+            self.assertEqual(entry["classifications"]["81"], ["allxt"])
+            self.assertIn(entry["classifications"]["87"], [["10"], ["20"]])
+        # Classification 99 not unnested — auto-set to "all"
+        for entry in result:
+            self.assertEqual(entry["classifications"]["99"], ["all"])
 
 
 if __name__ == "__main__":

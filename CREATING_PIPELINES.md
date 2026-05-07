@@ -354,6 +354,19 @@ unnest_classifications = true
 
 Use quando a tabela tiver classificações com dezenas ou centenas de categorias (ex: produtos agrícolas, municípios por produto).
 
+Para desnestrar apenas classificações específicas, passe uma lista de IDs em vez de `true`:
+
+```toml
+[[tabelas]]
+sidra_tabela           = "5938"
+variables              = ["allxp"]
+territories            = {6 = []}
+classifications        = {81 = ["allxt"]}
+unnest_classifications = ["87"]
+```
+
+Neste caso, apenas a classificação 87 é expandida por categoria. As classificações declaradas em `classifications` (aqui, `81 = ["allxt"]`) são mescladas como valores estáticos em cada requisição gerada.
+
 #### `split_variables = true`
 
 Emite uma requisição separada para cada variável. Útil quando a combinação de múltiplas variáveis com certas classificações gera respostas muito grandes ou erros da API:
