@@ -221,9 +221,12 @@ class TomlScript:
                 for parameter, modification in self.fetcher.plan_periods(**tabela):
                     plan.append((tabela, parameter, modification))
 
+            n_files = len(plan)
+            s_files = "arquivo" if n_files == 1 else "arquivos"
             with _make_download_progress(self.console) as progress:
-                dl_desc = f"Baixando arquivos ({n} {s})"
-                dl_task = progress.add_task(dl_desc, total=len(plan))
+                dl_task = progress.add_task(
+                    f"Baixando ({n_files} {s_files})", total=n_files
+                )
                 results = self.fetcher.download_periods(
                     plan, on_file_done=lambda: progress.advance(dl_task)
                 )
