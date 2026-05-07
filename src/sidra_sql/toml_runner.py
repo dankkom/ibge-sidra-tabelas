@@ -73,6 +73,19 @@ def _make_progress(console: Console | None) -> Progress:
         BarColumn(bar_width=28),
         TextColumn("[progress.percentage]{task.percentage:>3.0f}%", style="grey70"),
         TimeElapsedColumn(),
+        console=console,
+        transient=False,
+        disable=console is None,
+    )
+
+
+def _make_download_progress(console: Console | None) -> Progress:
+    return Progress(
+        SpinnerColumn(finished_text="[green]✓[/green]"),
+        TextColumn("[progress.description]{task.description}", table_column=None),
+        BarColumn(bar_width=28),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%", style="grey70"),
+        TimeElapsedColumn(),
         TextColumn("[cyan]eta[/cyan]"),
         TimeRemainingColumn(),
         console=console,
@@ -187,16 +200,17 @@ class TomlScript:
         n_meta = len({t["sidra_tabela"] for t in tabelas})
         s_meta = "tabela" if n_meta == 1 else "tabelas"
 
-        with _make_progress(self.console) as progress:
-            meta_task = progress.add_task(f"Metadados ({n_meta} {s_meta})", total=None)
-            with self.fetcher:
+        with self.fetcher:
+            with _make_progress(self.console) as progress:
+                meta_task = progress.add_task(f"Metadados ({n_meta} {s_meta})", total=None)
                 self.load_metadata(engine, tabelas)
                 progress.update(meta_task, total=1, completed=1, description=f"Metadados ({n_meta} {s_meta})")
 
-                total_files = sum(
-                    len(self.storage.read_metadata(t["sidra_tabela"]).periodos)
-                    for t in tabelas
-                )
+            total_files = sum(
+                len(self.storage.read_metadata(t["sidra_tabela"]).periodos)
+                for t in tabelas
+            )
+            with _make_download_progress(self.console) as progress:
                 dl_task = progress.add_task("Baixando arquivos...", total=total_files)
                 data_files = []
                 for tabela in tabelas:
@@ -208,6 +222,7 @@ class TomlScript:
                         data_files.append(tabela | result)
                 progress.update(dl_task, description=f"Download concluído ({len(data_files)} arquivos)")
 
+        with _make_progress(self.console) as progress:
             db_task = progress.add_task("Carregando no banco de dados", total=None)
             database.load_dados(engine, self.storage, data_files)
             progress.update(db_task, total=1, completed=1, description="Carregamento concluído")
