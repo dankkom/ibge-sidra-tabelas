@@ -16,6 +16,7 @@ Public API
 """
 
 import logging
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -74,6 +75,7 @@ class Fetcher:
             storage if storage is not None else Storage.default(config)
         )
         self.max_workers = max_workers
+        self._cancel = threading.Event()
 
     def plan_periods(
         self,
@@ -161,7 +163,8 @@ class Fetcher:
         """
         results: list[dict[str, Any]] = []
         errors: list[Exception] = []
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+        executor = ThreadPoolExecutor(max_workers=self.max_workers)
+        try:
             future_to_meta = {
                 executor.submit(self._download_period, parameter, modification): (key, modification)
                 for key, parameter, modification in plan
@@ -179,6 +182,12 @@ class Fetcher:
                     errors.append(e)
                 if on_file_done is not None:
                     on_file_done(key)
+        except KeyboardInterrupt:
+            self._cancel.set()
+            executor.shutdown(wait=True, cancel_futures=True)
+            raise
+        else:
+            executor.shutdown(wait=True)
         if errors:
             raise errors[0]
         return results
@@ -252,6 +261,8 @@ class Fetcher:
         modification: str,
     ) -> Path:
         """Download a single period and save it; return the destination path."""
+        if self._cancel.is_set():
+            raise InterruptedError("cancelled")
         if self.storage.exists(parameter, modification):
             filepath = self.storage.get_data_filepath(parameter, modification)
             logger.debug("File already exists (cache hit): %s", filepath)
@@ -281,6 +292,8 @@ class Fetcher:
         """
         url = parameter.url()
         for attempt in range(_MAX_RETRIES):
+            if self._cancel.is_set():
+                raise InterruptedError("cancelled")
             try:
                 return self.sidra_client.get(url)
             except _TRANSIENT_ERRORS as e:
@@ -294,7 +307,8 @@ class Fetcher:
                     attempt + 1,
                     _MAX_RETRIES,
                 )
-                time.sleep(delay)
+                if self._cancel.wait(delay):
+                    raise InterruptedError("cancelled")
 
     def __enter__(self):
         """Enter the context manager and return this `Fetcher`."""

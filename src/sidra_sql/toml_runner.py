@@ -16,6 +16,11 @@ call.  Two optional boolean flags extend the static format:
     category combination with `sidra.unnest_classificacoes`.  The
     ``classifications`` key, if present, is ignored.
 
+``unnest_classifications = ["id1", "id2"]``
+    Same expansion, but only for the listed classification IDs (integers also
+    accepted).  The ``classifications`` key, if present, is merged as static
+    defaults — unnested entries take precedence on key conflicts.
+
 ``split_variables = true``
     Issue one request per variable listed in ``variables`` instead of a
     single request with all variables.
@@ -34,6 +39,13 @@ Example TOML
     variables = ["allxp"]
     territories = {6 = []}
     unnest_classifications = true
+
+    [[tabelas]]
+    sidra_tabela = "5938"
+    variables = ["allxp"]
+    territories = {6 = []}
+    classifications = {81 = ["allxt"]}
+    unnest_classifications = ["87"]
 
     [[tabelas]]
     sidra_tabela = "1002"
@@ -135,15 +147,27 @@ class TomlScript:
             unnest = entry.pop("unnest_classifications", False)
             split_vars = entry.pop("split_variables", False)
 
-            if unnest:
-                entry.pop("classifications", None)
+            if unnest is not False:
                 metadados = self.fetcher.sidra_client.get_agregado_metadados(
                     entry["sidra_tabela"]
                 )
-                for classificacoes in sidra.unnest_classificacoes(
-                    metadados.classificacoes
-                ):
-                    result.append({**entry, "classifications": classificacoes})
+                if unnest is True:
+                    entry.pop("classifications", None)
+                    to_unnest = metadados.classificacoes
+                    static_cls: dict[str, list[str]] = {}
+                else:
+                    unnest_ids = {str(u) for u in unnest}
+                    to_unnest = [
+                        c for c in metadados.classificacoes
+                        if str(c.id) in unnest_ids
+                    ]
+                    static_cls = entry.pop("classifications", {})
+                    for c in metadados.classificacoes:
+                        cls_id = str(c.id)
+                        if cls_id not in unnest_ids and cls_id not in static_cls:
+                            static_cls[cls_id] = ["all"]
+                for cls_combo in sidra.unnest_classificacoes(to_unnest):
+                    result.append({**entry, "classifications": {**static_cls, **cls_combo}})
             elif split_vars:
                 variables = entry.pop("variables")
                 for var in variables:
@@ -205,7 +229,14 @@ class TomlScript:
         """Execute the full fetch-and-load pipeline."""
         engine = database.get_engine(self.config)
         models.Base.metadata.create_all(engine)
+        try:
+            self._run(engine)
+        except KeyboardInterrupt:
+            if self.console is not None:
+                self.console.print("\n[yellow]Interrompido.[/yellow]")
+            raise SystemExit(1)
 
+    def _run(self, engine: sa.Engine):
         tabelas = list(self.get_tabelas())
         n = len(tabelas)
         s = "tabela" if n == 1 else "tabelas"
