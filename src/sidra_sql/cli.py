@@ -5,6 +5,8 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+from sidra_sql import __version__
+
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -18,7 +20,7 @@ from sidra_sql.scaffold import PipelineAdder, PluginScaffolder
 from sidra_sql.validator import PluginValidator, Severity
 from sidra_sql.transform_runner import TransformRunner
 
-app = typer.Typer(help="Sidra-SQL CLI - Manage and run data pipelines")
+app = typer.Typer(help=f"Sidra-SQL CLI v{__version__} - Manage and run data pipelines")
 plugin_app = typer.Typer(help="Manage pipeline plugins")
 config_app = typer.Typer(help="Manage sidra-sql configuration")
 app.add_typer(plugin_app, name="plugin")
@@ -125,8 +127,19 @@ def config_list(
     console.print(table)
 
 
+def _version_callback(value: bool):
+    if value:
+        console.print(f"sidra-sql {__version__}")
+        raise typer.Exit()
+
+
 @app.callback()
-def bootstrap():
+def bootstrap(
+    version: Optional[bool] = typer.Option(
+        None, "--version", "-V", callback=_version_callback, is_eager=True,
+        help="Exibe a versão e encerra.",
+    ),
+):
     """Inicialização automática do sistema."""
     manager.ensure_defaults()
 
