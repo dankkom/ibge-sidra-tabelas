@@ -33,8 +33,14 @@ class TestTomlScript(unittest.TestCase):
         script = make_script()
 
         class FakeFetcher:
-            def download_table(self, **kwargs):
-                return [Path("/tmp/f1.csv")]
+            def plan_periods(self, **kwargs):
+                return [("param-1", "2025-01-01")]
+
+            def download_periods(self, plan, on_file_done=None):
+                return [
+                    {"key": key, "filepath": Path("/tmp/f1.csv"), "modificacao": mod}
+                    for key, _param, mod in plan
+                ]
 
         script.fetcher = FakeFetcher()
 
@@ -42,6 +48,8 @@ class TestTomlScript(unittest.TestCase):
         data_files = script.download(tabelas)
         self.assertEqual(len(data_files), 1)
         self.assertIn("filepath", data_files[0])
+        self.assertIn("modificacao", data_files[0])
+        self.assertEqual(data_files[0]["sidra_tabela"], "1")
 
     def test_load_metadata_reads_from_cache_when_file_exists(self):
         """load_metadata uses the cached file and never calls the API."""

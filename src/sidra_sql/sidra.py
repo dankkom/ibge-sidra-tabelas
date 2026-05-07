@@ -75,36 +75,31 @@ class Fetcher:
         )
         self.max_workers = max_workers
 
-    def download_table(
+    def plan_periods(
         self,
         sidra_tabela: str,
         territories: dict[str, list[str]],
         variables: list[str] | None = None,
         classifications: dict[str, list[str]] | None = None,
-        on_file_done: Callable[[], None] | None = None,
-    ) -> list[dict[str, Any]]:
-        """Download all periods of a SIDRA table and save them to disk.
+    ) -> list[tuple[Parametro, str]]:
+        """Build (Parametro, modification) tuples for every period of a table.
 
-        For each period returned by the SIDRA API this method builds a
-        `Parametro`, requests the data and writes a CSV to
-        ``data_dir / f"t-{sidra_tabela}" / filename``. If a destination
-        file already exists it is skipped.
+        Pure planning — no downloads. Use ``download_periods`` to fetch
+        a flat plan concurrently across many tables.
 
         Args:
             sidra_tabela: SIDRA table code (numeric string accepted).
             territories: Mapping of territory type codes to lists of
-                territory identifiers (e.g. {"6": ["1234567"]}).
-            variables: Optional list of variable codes to request. If
-                omitted, the special value ["all"] is used.
-            classifications: Optional mapping of classification id to a
-                list of category ids. If omitted the method will fetch
-                metadata and default to empty category lists for every
-                classification.
+                territory identifiers.
+            variables: Optional list of variable codes. Defaults to ["all"].
+            classifications: Optional classification → category mapping.
+                If omitted, defaults to empty list for each declared
+                classification (read from cached or fetched metadata).
 
         Returns:
-            A list of dicts with keys "filepath" (Path) and "modificacao" (str).
+            List of (Parametro, modification_iso_string) tuples — one per
+            period of the requested table.
         """
-
         if variables is None:
             variables = ["all"]
 
@@ -139,18 +134,46 @@ class Fetcher:
                 formato=Formato.A,
             )
             period_params.append((parameter, periodo.modificacao.isoformat()))
+        return period_params
 
+    def download_periods(
+        self,
+        plan: list[tuple[Any, Parametro, str]],
+        on_file_done: Callable[[], None] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Download many periods concurrently from a flat plan.
+
+        Submits every (Parametro, modification) entry of ``plan`` to a
+        single ``ThreadPoolExecutor`` capped at ``self.max_workers``,
+        regardless of which source table each entry came from.
+
+        Args:
+            plan: Tuples of (key, parameter, modification). ``key`` is
+                opaque metadata returned alongside each result so callers
+                can correlate downloads back to their originating request.
+            on_file_done: Optional callback fired once per completed
+                download (success or failure), useful for progress bars.
+
+        Returns:
+            List of dicts with keys "key", "filepath", "modificacao", in
+            completion order. Raises the first download error after all
+            futures complete.
+        """
         results: list[dict[str, Any]] = []
         errors: list[Exception] = []
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            future_to_mod = {
-                executor.submit(self._download_period, parameter, modification): modification
-                for parameter, modification in period_params
+            future_to_meta = {
+                executor.submit(self._download_period, parameter, modification): (key, modification)
+                for key, parameter, modification in plan
             }
-            for future in as_completed(future_to_mod):
-                modification = future_to_mod[future]
+            for future in as_completed(future_to_meta):
+                key, modification = future_to_meta[future]
                 try:
-                    results.append({"filepath": future.result(), "modificacao": modification})
+                    results.append({
+                        "key": key,
+                        "filepath": future.result(),
+                        "modificacao": modification,
+                    })
                 except Exception as e:
                     logger.error("Period download failed: %s", e)
                     errors.append(e)
@@ -159,6 +182,39 @@ class Fetcher:
         if errors:
             raise errors[0]
         return results
+
+    def download_table(
+        self,
+        sidra_tabela: str,
+        territories: dict[str, list[str]],
+        variables: list[str] | None = None,
+        classifications: dict[str, list[str]] | None = None,
+        on_file_done: Callable[[], None] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Download all periods of a single SIDRA table and save them to disk.
+
+        Convenience wrapper around ``plan_periods`` + ``download_periods``
+        for callers that only need to fetch one table at a time. To
+        parallelize across many tables, build a combined plan via
+        ``plan_periods`` and submit it through ``download_periods``.
+
+        Returns:
+            A list of dicts with keys "filepath" (Path) and "modificacao" (str).
+        """
+        plan = [
+            (None, parameter, modification)
+            for parameter, modification in self.plan_periods(
+                sidra_tabela=sidra_tabela,
+                territories=territories,
+                variables=variables,
+                classifications=classifications,
+            )
+        ]
+        results = self.download_periods(plan, on_file_done=on_file_done)
+        return [
+            {"filepath": r["filepath"], "modificacao": r["modificacao"]}
+            for r in results
+        ]
 
     def fetch_metadata(self, sidra_tabela: str) -> Agregado:
         """Fetch full metadata for a SIDRA table including localidades and periodos."""

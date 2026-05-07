@@ -154,12 +154,21 @@ class TomlScript:
     def download(
         self, tabelas: Iterable[dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        """Download all tables and return a list of data-file descriptors."""
-        data_files = []
+        """Download all tables and return a list of data-file descriptors.
+
+        Builds a flat plan across every requested table and submits it
+        through a single ``ThreadPoolExecutor`` so downloads parallelize
+        across table boundaries, not just across periods of one table.
+        """
+        plan: list[tuple[dict[str, Any], Any, str]] = []
         for tabela in tabelas:
-            for result in self.fetcher.download_table(**tabela):
-                data_files.append(tabela | result)
-        return data_files
+            for parameter, modification in self.fetcher.plan_periods(**tabela):
+                plan.append((tabela, parameter, modification))
+        results = self.fetcher.download_periods(plan)
+        return [
+            r["key"] | {"filepath": r["filepath"], "modificacao": r["modificacao"]}
+            for r in results
+        ]
 
     def load_metadata(
         self, engine: sa.Engine, tabelas: Iterable[dict[str, Any]]
@@ -197,6 +206,7 @@ class TomlScript:
 
         tabelas = list(self.get_tabelas())
         n = len(tabelas)
+        s = "tabela" if n == 1 else "tabelas"
         n_meta = len({t["sidra_tabela"] for t in tabelas})
         s_meta = "tabela" if n_meta == 1 else "tabelas"
 
@@ -206,21 +216,25 @@ class TomlScript:
                 self.load_metadata(engine, tabelas)
                 progress.update(meta_task, total=1, completed=1, description=f"Metadados ({n_meta} {s_meta})")
 
-            total_files = sum(
-                len(self.storage.read_metadata(t["sidra_tabela"]).periodos)
-                for t in tabelas
-            )
+            plan: list[tuple[dict[str, Any], Any, str]] = []
+            for tabela in tabelas:
+                for parameter, modification in self.fetcher.plan_periods(**tabela):
+                    plan.append((tabela, parameter, modification))
+
             with _make_download_progress(self.console) as progress:
-                dl_task = progress.add_task("Baixando arquivos...", total=total_files)
-                data_files = []
-                for tabela in tabelas:
-                    tid = tabela["sidra_tabela"]
-                    progress.update(dl_task, description=f"Baixando tabela [bold]{tid}[/bold]")
-                    for result in self.fetcher.download_table(
-                        **tabela, on_file_done=lambda: progress.advance(dl_task)
-                    ):
-                        data_files.append(tabela | result)
-                progress.update(dl_task, description=f"Download concluído ({len(data_files)} arquivos)")
+                dl_desc = f"Baixando arquivos ({n} {s})"
+                dl_task = progress.add_task(dl_desc, total=len(plan))
+                results = self.fetcher.download_periods(
+                    plan, on_file_done=lambda: progress.advance(dl_task)
+                )
+                data_files = [
+                    r["key"] | {"filepath": r["filepath"], "modificacao": r["modificacao"]}
+                    for r in results
+                ]
+                progress.update(
+                    dl_task,
+                    description=f"Download concluído ({len(data_files)} arquivos)",
+                )
 
         with _make_progress(self.console) as progress:
             db_task = progress.add_task("Carregando no banco de dados", total=None)
