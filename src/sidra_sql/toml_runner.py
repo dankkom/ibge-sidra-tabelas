@@ -181,13 +181,14 @@ class TomlScript:
 
         tabelas = list(self.get_tabelas())
         n = len(tabelas)
-        s = "tabela" if n == 1 else "tabelas"
+        n_meta = len({t["sidra_tabela"] for t in tabelas})
+        s_meta = "tabela" if n_meta == 1 else "tabelas"
 
         with _make_progress(self.console) as progress:
-            meta_task = progress.add_task(f"Metadados ({n} {s})", total=None)
+            meta_task = progress.add_task(f"Metadados ({n_meta} {s_meta})", total=None)
             with self.fetcher:
                 self.load_metadata(engine, tabelas)
-                progress.update(meta_task, total=1, completed=1, description=f"Metadados ({n} {s})")
+                progress.update(meta_task, total=1, completed=1, description=f"Metadados ({n_meta} {s_meta})")
 
                 total_files = sum(
                     len(self.storage.read_metadata(t["sidra_tabela"]).periodos)
