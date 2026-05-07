@@ -56,6 +56,7 @@ from rich.progress import (
     SpinnerColumn,
     TextColumn,
     TimeElapsedColumn,
+    TimeRemainingColumn,
 )
 
 from . import database, models, sidra
@@ -70,8 +71,10 @@ def _make_progress(console: Console | None) -> Progress:
         SpinnerColumn(finished_text="[green]✓[/green]"),
         TextColumn("[progress.description]{task.description}", table_column=None),
         BarColumn(bar_width=28),
-        TextColumn("[progress.percentage]{task.percentage:>3.0f}%", style="dim"),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%", style="grey70"),
         TimeElapsedColumn(),
+        TextColumn("[cyan]eta[/cyan]"),
+        TimeRemainingColumn(),
         console=console,
         transient=False,
         disable=console is None,
