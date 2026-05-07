@@ -139,7 +139,7 @@ class Fetcher:
     def download_periods(
         self,
         plan: list[tuple[Any, Parametro, str]],
-        on_file_done: Callable[[], None] | None = None,
+        on_file_done: Callable[[Any], None] | None = None,
     ) -> list[dict[str, Any]]:
         """Download many periods concurrently from a flat plan.
 
@@ -178,7 +178,7 @@ class Fetcher:
                     logger.error("Period download failed: %s", e)
                     errors.append(e)
                 if on_file_done is not None:
-                    on_file_done()
+                    on_file_done(key)
         if errors:
             raise errors[0]
         return results

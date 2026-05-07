@@ -50,10 +50,12 @@ from typing import Any, Iterable
 
 import sqlalchemy as sa
 from rich.console import Console
+from rich.table import Table
 from rich.progress import (
     BarColumn,
     Progress,
     SpinnerColumn,
+    TaskID,
     TextColumn,
     TimeElapsedColumn,
     TimeRemainingColumn,
@@ -221,23 +223,50 @@ class TomlScript:
                 for parameter, modification in self.fetcher.plan_periods(**tabela):
                     plan.append((tabela, parameter, modification))
 
-            n_files = len(plan)
-            s_files = "arquivo" if n_files == 1 else "arquivos"
+            if self.console is not None:
+                n_plan = len(plan)
+                info = Table.grid(padding=(0, 2))
+                info.add_column(style="bold")
+                info.add_column()
+                info.add_row("Pipeline", str(self.toml_path))
+                info.add_row("Tabelas", f"{n_meta} {s_meta}")
+                if n != n_meta:
+                    info.add_row("Requisições por período", str(n))
+                n_periods = n_plan // n if n and n_plan % n == 0 else n_plan
+                info.add_row("Períodos", str(n_periods))
+                info.add_row("Threads", str(self.fetcher.max_workers))
+                info.add_row(
+                    "Banco",
+                    f"{self.config.db_host}:{self.config.db_port}/{self.config.db_name}"
+                    f"  schema={self.config.db_schema}",
+                )
+                info.add_row("Storage", str(self.config.data_dir))
+                self.console.print(info)
+                self.console.print()
+
+            files_per_table: dict[str, int] = {}
+            for tabela, _, _ in plan:
+                sid = tabela["sidra_tabela"]
+                files_per_table[sid] = files_per_table.get(sid, 0) + 1
+
             with _make_download_progress(self.console) as progress:
-                dl_task = progress.add_task(
-                    f"Baixando ({n_files} {s_files})", total=n_files
-                )
-                results = self.fetcher.download_periods(
-                    plan, on_file_done=lambda: progress.advance(dl_task)
-                )
+                task_by_table: dict[str, TaskID] = {}
+                for sid, n in files_per_table.items():
+                    s = "arquivo" if n == 1 else "arquivos"
+                    task_by_table[sid] = progress.add_task(
+                        f"Tabela {sid} ({n} {s})", total=n
+                    )
+
+                def _on_done(key: dict[str, Any]) -> None:
+                    progress.advance(task_by_table[key["sidra_tabela"]])
+
+                results = self.fetcher.download_periods(plan, on_file_done=_on_done)
                 data_files = [
                     r["key"] | {"filepath": r["filepath"], "modificacao": r["modificacao"]}
                     for r in results
                 ]
-                progress.update(
-                    dl_task,
-                    description=f"Download concluído ({len(data_files)} arquivos)",
-                )
+                for sid, task_id in task_by_table.items():
+                    progress.update(task_id, description=f"Tabela {sid} ✓")
 
         with _make_progress(self.console) as progress:
             db_task = progress.add_task("Carregando no banco de dados", total=None)

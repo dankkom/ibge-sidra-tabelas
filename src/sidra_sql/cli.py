@@ -8,8 +8,11 @@ from typing import Optional
 from sidra_sql import __version__
 
 import typer
+from rich.align import Align
 from rich.console import Console
+from rich.panel import Panel
 from rich.table import Table
+from rich.text import Text
 
 import configparser
 
@@ -28,6 +31,19 @@ app.add_typer(config_app, name="config")
 
 console = Console()
 manager = PluginManager()
+
+
+def _print_header() -> None:
+    content = Align.center(
+        Text.assemble(
+            ("sidra-sql", "bold cyan"),
+            (f"  v{__version__}", "dim"),
+            "\n",
+            ("Tabelas de dados agregados do IBGE", "dim"),
+        )
+    )
+    console.print(Panel(content, border_style="cyan dim", padding=(0, 0)))
+    console.print()
 
 
 def _config_path(use_global: bool) -> Path:
@@ -375,9 +391,7 @@ def run_pipeline(
                     f"[yellow]No pipelines found in '{alias}'.[/yellow]"
                 )
                 return
-            console.print(
-                f"[bold blue]Running all {len(pipelines)} pipeline(s) from '{alias}'[/bold blue]"
-            )
+            _print_header()
             for p in pipelines:
                 console.print(f"\n[cyan]→ {p.id}[/cyan]")
                 run_subtree(
@@ -392,10 +406,7 @@ def run_pipeline(
         else:
             pipeline = manager.get_pipeline(alias, pipeline_id)
 
-            console.print(
-                f"[bold blue]Running pipeline {pipeline_id} from {alias}[/bold blue]"
-            )
-
+            _print_header()
             run_subtree(
                 config,
                 pipeline.path,
@@ -432,7 +443,7 @@ def run_pipeline_path(
             raise typer.Exit(1)
 
         config = Config()
-        console.print(f"[bold blue]Running pipeline from {resolved}[/bold blue]")
+        _print_header()
         run_subtree(config, resolved, force_metadata=force_metadata, console=console)
         console.print("[bold green]Pipeline completed successfully![/bold green]")
     except ConfigError as e:
