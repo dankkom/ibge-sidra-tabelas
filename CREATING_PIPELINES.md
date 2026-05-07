@@ -18,7 +18,7 @@ Este guia é destinado a desenvolvedores e cientistas de dados brasileiros que q
   - [Flags especiais](#flags-especiais)
 - [Os arquivos de transformação](#os-arquivos-de-transformação)
   - [`transform.toml`](#transformtoml)
-  - [`transform.sql`](#transformsql)
+  - [Arquivos `.sql`](#arquivos-sql)
   - [Referência do esquema normalizado](#referência-do-esquema-normalizado)
 - [Usando a CLI](#usando-a-cli)
 - [Publicando e instalando seu plugin](#publicando-e-instalando-seu-plugin)
@@ -41,8 +41,8 @@ Plugin (seu repositório Git)
 ├── manifest.toml       ← registro das pipelines
 ├── lavouras/
 │   ├── fetch.toml      ← o que baixar da API SIDRA
-│   ├── transform.toml  ← como materializar a tabela analítica
-│   └── transform.sql   ← SQL que transforma o dado normalizado
+│   ├── transform.toml  ← declara uma ou mais saídas [[table]]
+│   └── lavouras.sql    ← SQL de cada saída (um arquivo por entrada [[table]])
 └── ...
 
 Motor sidra-sql
@@ -58,8 +58,8 @@ O `sidra-sql` inclui comandos para gerar a estrutura de um plugin automaticament
 ### Fluxo completo
 
 ```bash
-# 1. Criar o plugin — gera manifest.toml, README.md, .gitignore
-#    e o primeiro pipeline com fetch.toml, transform.toml e transform.sql
+# 1. Criar o plugin — gera manifest.toml, README.md, .gitignore e o
+#    primeiro pipeline com fetch.toml, transform.toml e <slug>.sql
 sidra-sql plugin scaffold meu-plugin \
     --description "Dados agropecuários do IBGE" \
     --version "1.0.0"
@@ -72,12 +72,13 @@ sidra-sql plugin scaffold meu-plugin \
 # └── meu_plugin/
 #     ├── fetch.toml
 #     ├── transform.toml
-#     └── transform.sql
+#     └── meu_plugin.sql
 
 # 2. Editar os templates:
 #    - Em fetch.toml: substituir "XXXX" pelo ID da tabela SIDRA
-#    - Em transform.toml: ajustar o nome da tabela de saída
-#    - Em transform.sql: escrever a query de transformação
+#    - Em transform.toml: ajustar o nome da tabela em [[table]]
+#    - Em <slug>.sql: escrever a query de transformação
+#    Para múltiplas saídas, adicione mais blocos [[table]] e seus arquivos .sql
 
 # 3. Adicionar mais pipelines conforme necessário
 cd meu-plugin
@@ -100,8 +101,7 @@ sidra-sql plugin validate --plugin-dir ./meu-plugin
 #   [OK] 2 pipeline(s) declarado(s)
 # meu_plugin
 #   [OK] fetch.toml válido (1 tabela(s))
-#   [OK] transform.toml válido
-#   [OK] transform.sql presente
+#   [OK] transform.toml válido (1 saída(s))
 # Resultado: Válido, sem erros ou avisos
 
 # 5. Publicar no Git e instalar
@@ -134,8 +134,8 @@ sidra-sql plugin install https://github.com/seu-usuario/meu-plugin.git --alias m
 | `manifest.toml` | TOML inválido, `id`/`path` ausentes, IDs duplicados | `name`/`version` ausentes, nenhum pipeline declarado |
 | Diretório do pipeline | Diretório não existe | — |
 | `fetch.toml` | TOML inválido, nenhuma `[[tabelas]]`, `sidra_tabela` ausente | — |
-| `transform.toml` | TOML inválido, `[table]` ausente, campos `name`/`schema`/`strategy` faltando | — |
-| `transform.sql` | Ausente quando `transform.toml` existe | — |
+| `transform.toml` | TOML inválido, nenhum `[[table]]` declarado, uso do schema antigo `[table]` singular, campos `name`/`schema`/`strategy`/`sql` faltando, `strategy` inválido, saídas duplicadas (mesmo `schema.name`) | — |
+| Arquivos SQL | Arquivo referenciado em `[[table]].sql` não encontrado no diretório | — |
 
 O comando retorna código de saída `1` se houver erros — útil em pipelines de CI.
 
@@ -174,12 +174,12 @@ meu-plugin-sidra/
 ├── README.md                     # documentação do plugin
 ├── agricultura/                  # diretório de uma pipeline
 │   ├── fetch.toml                # regras de download
-│   ├── transform.toml            # configuração da tabela analítica
-│   └── transform.sql             # SQL de transformação
+│   ├── transform.toml            # uma ou mais saídas [[table]]
+│   └── agricultura.sql           # SQL de cada saída (um por entrada)
 └── pecuaria/                     # outra pipeline (opcional)
     ├── fetch.toml
     ├── transform.toml
-    └── transform.sql
+    └── pecuaria.sql
 ```
 
 Não há restrição de profundidade ou nomenclatura de diretórios — o que importa são os caminhos declarados no `manifest.toml`.
@@ -225,11 +225,11 @@ Exemplo — `path = "populacao"`:
 ```text
 populacao/
 ├── transform.toml          ← roda por último (UNION das filhas)
-├── transform.sql
+├── populacao.sql
 ├── censo_populacao/        ← roda primeiro (fetch + transform)
 │   ├── fetch.toml
 │   ├── transform.toml
-│   └── transform.sql
+│   └── censo_populacao.sql
 ├── contagem_populacao/     ← roda em seguida
 │   └── ...
 └── estimapop/              ← roda em seguida
@@ -388,33 +388,33 @@ Após o download e carga dos dados brutos no schema normalizado (`ibge_sidra`), 
 
 ### `transform.toml`
 
+Cada `[[table]]` é uma saída do pipeline. Um pipeline pode ter quantas saídas precisar — basta adicionar mais blocos `[[table]]` e criar um arquivo `.sql` para cada um.
+
 ```toml
-[table]
+[[table]]
 name        = "pam_lavouras_permanentes"    # nome da tabela de destino
 schema      = "analytics"                   # schema de destino
 strategy    = "replace"                     # "replace" ou "view"
+sql         = "lavouras_permanentes.sql"    # arquivo SQL relativo a transform.toml
 description = "PAM — lavouras permanentes por município e produto"
 primary_key = ["ano", "id_municipio", "produto", "variavel"]  # opcional
-
-[[table.indexes]]
-name    = "idx_pam_lp_ano"
-columns = ["ano"]
-
-[[table.indexes]]
-name    = "idx_pam_lp_municipio"
-columns = ["id_municipio"]
-unique  = false
+indexes     = [
+    { name = "idx_pam_lp_ano",        columns = ["ano"] },
+    { name = "idx_pam_lp_municipio",  columns = ["id_municipio"] },
+]
 ```
 
-**Campos do `[table]`:**
+**Campos de cada `[[table]]`:**
 
 | Campo | Tipo | Obrigatório | Descrição |
 |---|---|---|---|
-| `name` | string | sim | Nome da tabela de destino |
+| `name` | string | sim | Nome da tabela/view de destino |
 | `schema` | string | sim | Schema PostgreSQL de destino |
 | `strategy` | string | sim | `"replace"` ou `"view"` |
+| `sql` | string | sim | Caminho do arquivo `.sql` (relativo ao `transform.toml`) |
 | `description` | string | não | Descrição para documentação |
-| `primary_key` | lista | não | Colunas que formam a PK após a carga |
+| `primary_key` | lista | não | Colunas que formam a PK após a carga (apenas `replace`) |
+| `indexes` | lista | não | Índices adicionais; cada item: `{ name, columns, unique? }` |
 
 **Estratégias:**
 
@@ -423,15 +423,27 @@ unique  = false
 | `replace` | `DROP TABLE` + `CREATE TABLE AS SELECT` + índices/PK | Importação em Power BI, Excel (refresh completo) |
 | `view` | `CREATE OR REPLACE VIEW` | Conexões live, dashboards, zero storage extra |
 
-**Índices (`[[table.indexes]]`):**
+#### Múltiplas saídas em um único pipeline
 
-| Campo | Tipo | Padrão | Descrição |
-|---|---|---|---|
-| `name` | string | — | Nome do índice |
-| `columns` | lista | — | Colunas do índice |
-| `unique` | bool | `false` | Se o índice deve ser único |
+Quando um mesmo conjunto de dados (mesmo `fetch.toml`) precisa render mais de uma estrutura — ex.: uma tabela detalhada para análise + uma view agregada para dashboard — declare múltiplos `[[table]]`:
 
-### `transform.sql`
+```toml
+[[table]]
+name     = "ipca"
+schema   = "analytics"
+strategy = "replace"
+sql      = "ipca.sql"
+
+[[table]]
+name     = "ipca_resumo_anual"
+schema   = "analytics"
+strategy = "view"
+sql      = "ipca_resumo.sql"
+```
+
+Cada saída é materializada na ordem do array, em sua própria transação. Se uma falhar, as anteriores persistem; as seguintes não rodam.
+
+### Arquivos `.sql`
 
 O arquivo `.sql` contém um `SELECT` puro. O `search_path` é configurado automaticamente pelo motor para o schema `ibge_sidra`, então **não use prefixo de schema** nas tabelas:
 
@@ -692,23 +704,20 @@ classifications = {315 = []}
 
 **`pib/transform.toml`:**
 ```toml
-[table]
+[[table]]
 name        = "pib_municipal"
 schema      = "analytics"
 strategy    = "replace"
+sql         = "pib.sql"
 description = "PIB dos Municípios — valor adicionado e PIB total"
 primary_key = ["ano", "id_municipio", "variavel"]
-
-[[table.indexes]]
-name    = "idx_pib_ano"
-columns = ["ano"]
-
-[[table.indexes]]
-name    = "idx_pib_municipio"
-columns = ["id_municipio"]
+indexes     = [
+    { name = "idx_pib_ano",        columns = ["ano"] },
+    { name = "idx_pib_municipio",  columns = ["id_municipio"] },
+]
 ```
 
-**`pib/transform.sql`:**
+**`pib/pib.sql`:**
 ```sql
 SELECT
     p.ano                                               AS ano,
@@ -759,7 +768,17 @@ territories     = {1 = [], 6 = [], 7 = [], 71 = []}
 classifications = {315 = []}
 ```
 
-**`ipca/transform.sql`:**
+**`ipca/transform.toml`:**
+```toml
+[[table]]
+name        = "ipca_serie_historica"
+schema      = "analytics"
+strategy    = "replace"
+sql         = "ipca.sql"
+description = "IPCA — série histórica unificada"
+```
+
+**`ipca/ipca.sql`:**
 ```sql
 SELECT
     p.codigo                                            AS periodo,
@@ -796,7 +815,16 @@ territories            = {6 = []}
 unnest_classifications = true
 ```
 
-**`permanentes/transform.sql`:**
+**`permanentes/transform.toml`:**
+```toml
+[[table]]
+name     = "pam_lavouras_permanentes"
+schema   = "analytics"
+strategy = "replace"
+sql      = "permanentes.sql"
+```
+
+**`permanentes/permanentes.sql`:**
 ```sql
 SELECT
     p.ano                                               AS ano,
@@ -825,7 +853,7 @@ WHERE d.sidra_tabela_id = '1613'
 - **Use `split_variables` quando necessário:** algumas tabelas retornam dados inconsistentes quando múltiplas variáveis com unidades diferentes são solicitadas juntas.
 - **Prefira `[]` a `["all"]`:** ambos retornam todos os IDs, mas `[]` é resolvido dinamicamente, o que é mais correto para tabelas que adicionam territórios com o tempo.
 
-### transform.sql
+### Arquivos `.sql`
 
 - **Sempre filtre por `d.ativo = true`:** garante que apenas o dado mais recente para cada período seja retornado.
 - **Use o guard numérico:** `CASE WHEN d.v ~ '^-?[0-9]' THEN d.v::numeric END` converte flags do SIDRA (`"..."`, `"-"`, `"X"`, `"C"`) em `NULL`.
@@ -839,6 +867,7 @@ WHERE d.sidra_tabela_id = '1613'
 - **Crie índices nas colunas mais filtradas:** geralmente `ano`, `id_municipio`, `localidade_id`.
 - **Use `strategy = "view"` para dados que atualizam constantemente:** zero overhead de storage, sempre reflete o estado atual do banco.
 - **Use `strategy = "replace"` para importação em ferramentas BI:** o Power BI e Excel precisam de tabelas físicas para refresh incremental.
+- **Múltiplas saídas por pipeline:** prefira agrupar saídas relacionadas (mesma fonte de dados) em um único pipeline com vários `[[table]]` em vez de duplicar `fetch.toml` em pipelines irmãos.
 
 ### Organização do plugin
 

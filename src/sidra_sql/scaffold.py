@@ -31,10 +31,15 @@ def _fetch_toml_template() -> str:
 
 def _transform_toml_template(slug: str) -> str:
     return (
-        "[table]\n"
+        "# Cada [[table]] declara uma saída do pipeline.\n"
+        "# Para múltiplas saídas, adicione mais blocos [[table]] e crie um\n"
+        "# arquivo .sql correspondente para cada um.\n"
+        "\n"
+        "[[table]]\n"
         f'name        = "{slug}"\n'
         'schema      = "analytics"\n'
-        'strategy    = "replace"\n'
+        'strategy    = "replace"        # "replace" ou "view"\n'
+        f'sql         = "{slug}.sql"\n'
         'description = "Descrição da tabela de saída"\n'
     )
 
@@ -96,7 +101,7 @@ class PluginScaffolder:
         self._write(self.plugin_dir / "README.md", self._readme())
         self._write(pipeline_dir / "fetch.toml", _fetch_toml_template())
         self._write(pipeline_dir / "transform.toml", _transform_toml_template(self.slug))
-        self._write(pipeline_dir / "transform.sql", _transform_sql_template())
+        self._write(pipeline_dir / f"{self.slug}.sql", _transform_sql_template())
 
         if self.git_init:
             self._write(self.plugin_dir / ".gitignore", self._gitignore())
@@ -141,7 +146,7 @@ class PluginScaffolder:
             "\n"
             "1. Encontre a tabela desejada em https://sidra.ibge.gov.br\n"
             f"2. Edite `{self.slug}/fetch.toml` com o ID da tabela e variáveis\n"
-            f"3. Ajuste `{self.slug}/transform.sql` para a transformação desejada\n"
+            f"3. Ajuste `{self.slug}/{self.slug}.sql` para a transformação desejada\n"
             f"4. Atualize `{self.slug}/transform.toml` com o nome da tabela de saída\n"
             "5. Adicione mais pipelines em `manifest.toml` conforme necessário\n"
             "\n"
@@ -228,7 +233,7 @@ class PipelineAdder:
         self.pipeline_dir.joinpath("transform.toml").write_text(
             _transform_toml_template(self.slug), encoding="utf-8"
         )
-        self.pipeline_dir.joinpath("transform.sql").write_text(
+        self.pipeline_dir.joinpath(f"{self.slug}.sql").write_text(
             _transform_sql_template(), encoding="utf-8"
         )
 

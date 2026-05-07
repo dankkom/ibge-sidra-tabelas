@@ -141,10 +141,6 @@ class PluginValidator:
 
         if has_transform:
             self._validate_transform_toml(pipeline_dir, section)
-            if not (pipeline_dir / "transform.sql").exists():
-                section.error("transform.toml presente mas transform.sql ausente")
-            else:
-                section.ok("transform.sql presente")
 
     def _validate_fetch_toml(self, pipeline_dir: Path, section: SectionReport) -> None:
         fetch_path = pipeline_dir / "fetch.toml"
@@ -175,15 +171,53 @@ class PluginValidator:
             section.error(f"transform.toml: TOML inválido: {e}")
             return
 
-        table = data.get("table")
-        if not table:
-            section.error("transform.toml: seção [table] ausente")
+        tables = data.get("table")
+        if isinstance(tables, dict):
+            section.error(
+                "transform.toml: schema [table] singular foi removido — "
+                "migre para [[table]] (array) com campo 'sql' por entrada"
+            )
+            return
+        if not isinstance(tables, list) or not tables:
+            section.error("transform.toml: nenhum [[table]] declarado")
             return
 
-        missing = [f for f in ("name", "schema", "strategy") if f not in table]
-        if missing:
-            section.error(
-                f"transform.toml: campo(s) obrigatório(s) ausente(s) em [table]: {', '.join(missing)}"
-            )
-        else:
-            section.ok("transform.toml válido")
+        seen: set[tuple[str, str]] = set()
+        any_error = False
+        for i, t in enumerate(tables):
+            entry = f"[[table]][{i}]"
+            missing = [f for f in ("name", "schema", "strategy", "sql") if f not in t]
+            if missing:
+                section.error(
+                    f"transform.toml: {entry} sem campo(s) obrigatório(s): "
+                    f"{', '.join(missing)}"
+                )
+                any_error = True
+                continue
+
+            strategy = t["strategy"]
+            if strategy not in ("replace", "view"):
+                section.error(
+                    f"transform.toml: {entry} strategy inválido: {strategy!r} "
+                    "(esperado 'replace' ou 'view')"
+                )
+                any_error = True
+
+            key = (t["schema"], t["name"])
+            if key in seen:
+                section.error(
+                    f"transform.toml: saída duplicada {key[0]}.{key[1]}"
+                )
+                any_error = True
+            seen.add(key)
+
+            sql_path = pipeline_dir / t["sql"]
+            if not sql_path.exists():
+                section.error(
+                    f"transform.toml: {entry} aponta para sql='{t['sql']}' "
+                    "mas o arquivo não existe"
+                )
+                any_error = True
+
+        if not any_error:
+            section.ok(f"transform.toml válido ({len(tables)} saída(s))")

@@ -1,25 +1,31 @@
 # Copyright (c) 2026 Komesu, D.K.
 # Licensed under the MIT License.
 
-"""Pipeline runner for SQL transformations defined by TOML + SQL file pairs.
+"""Pipeline runner for SQL transformations defined by ``transform.toml``.
 
-Each transformation is defined by two files sharing the same stem:
-
-``transformations/snpc/ipca.toml``
-    Declares the target table name, schema, and materialization strategy.
-
-``transformations/snpc/ipca.sql``
-    Contains a SELECT query that produces analysis-ready data.
+A pipeline directory contains one ``transform.toml`` declaring one or more
+output tables/views. Each ``[[table]]`` entry references its own ``.sql``
+file in the same directory.
 
 TOML schema
 -----------
 ::
 
-    [table]
+    [[table]]
     name        = "ipca"
     schema      = "analytics"
     strategy    = "replace"     # "replace" or "view"
-    description = "IPCA - todas as séries históricas unificadas"
+    sql         = "ipca.sql"
+    description = "IPCA - série detalhada"
+
+    [[table]]
+    name        = "ipca_resumo"
+    schema      = "analytics"
+    strategy    = "view"
+    sql         = "ipca_resumo.sql"
+
+Required fields per entry: ``name``, ``schema``, ``strategy``, ``sql``.
+Optional: ``description``, ``primary_key``, ``indexes``.
 
 Strategies
 ~~~~~~~~~~
@@ -31,7 +37,10 @@ Strategies
     ``CREATE OR REPLACE VIEW``.  Zero storage cost, always up-to-date,
     best for live database connections.
 
-The SQL query uses unqualified table names (``dados``, ``dimensao``,
+Each entry runs in its own transaction; if one fails, previously
+materialized outputs from the same pipeline persist.
+
+The SQL queries use unqualified table names (``dados``, ``dimensao``,
 ``localidade``, ``sidra_tabela``).  They resolve via the database
 ``search_path`` set by ``get_engine`` from ``config.ini``.
 """
@@ -50,7 +59,7 @@ logger = logging.getLogger(__name__)
 
 
 class TransformRunner:
-    """Run a SQL transformation defined by a TOML + SQL file pair."""
+    """Run SQL transformations declared in a ``transform.toml`` file."""
 
     def __init__(self, config: Config, toml_path: Path, console: Console | None = None):
         self.config = config
@@ -61,19 +70,15 @@ class TransformRunner:
         with open(self.toml_path, "rb") as f:
             data = tomllib.load(f)
 
-        table_config = data["table"]
-        name = table_config["name"]
-        schema = table_config["schema"]
-        strategy = table_config.get("strategy", "replace")
-        primary_key = table_config.get("primary_key")
-        indexes = table_config.get("indexes", [])
-
-        sql_path = self.toml_path.with_suffix(".sql")
-        query = sql_path.read_text(encoding="utf-8").strip()
+        tables = data.get("table")
+        if not isinstance(tables, list) or not tables:
+            raise ValueError(
+                f"{self.toml_path}: esperado um ou mais [[table]] (array). "
+                "O schema [table] singular foi removido — migre para [[table]] "
+                "com campo 'sql' explícito por entrada."
+            )
 
         engine = database.get_engine(self.config)
-        qualified = f'"{schema}"."{name}"'
-        strategy_label = {"replace": "tabela", "view": "view"}.get(strategy, strategy)
 
         with Progress(
             SpinnerColumn(finished_text="[green]✓[/green]"),
@@ -83,35 +88,65 @@ class TransformRunner:
             transient=False,
             disable=self.console is None,
         ) as progress:
-            task = progress.add_task(
-                f"{qualified} [dim][{strategy_label}][/dim]", total=None
+            for entry in tables:
+                self._materialize(engine, entry, progress)
+
+    def _materialize(self, engine, entry: dict, progress: Progress) -> None:
+        missing = [f for f in ("name", "schema", "strategy", "sql") if f not in entry]
+        if missing:
+            raise ValueError(
+                f"{self.toml_path}: [[table]] sem campo(s) obrigatório(s): "
+                f"{', '.join(missing)}"
             )
-            with engine.begin() as conn:
-                conn.exec_driver_sql(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
 
-                if strategy == "view":
+        name = entry["name"]
+        schema = entry["schema"]
+        strategy = entry["strategy"]
+        sql_rel = entry["sql"]
+        primary_key = entry.get("primary_key")
+        indexes = entry.get("indexes", [])
+
+        sql_path = self.toml_path.parent / sql_rel
+        if not sql_path.exists():
+            raise FileNotFoundError(
+                f"{self.toml_path}: arquivo SQL '{sql_rel}' não encontrado em "
+                f"{self.toml_path.parent}"
+            )
+        query = sql_path.read_text(encoding="utf-8").strip()
+
+        qualified = f'"{schema}"."{name}"'
+        strategy_label = {"replace": "tabela", "view": "view"}.get(strategy, strategy)
+        task = progress.add_task(
+            f"{qualified} [dim][{strategy_label}][/dim]", total=None
+        )
+
+        with engine.begin() as conn:
+            conn.exec_driver_sql(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
+
+            if strategy == "view":
+                conn.exec_driver_sql(
+                    f"CREATE OR REPLACE VIEW {qualified} AS\n{query}"
+                )
+            elif strategy == "replace":
+                conn.exec_driver_sql(f"DROP TABLE IF EXISTS {qualified}")
+                conn.exec_driver_sql(f"CREATE TABLE {qualified} AS\n{query}")
+
+                if primary_key:
+                    pk_cols = ", ".join(f'"{c}"' for c in primary_key)
                     conn.exec_driver_sql(
-                        f"CREATE OR REPLACE VIEW {qualified} AS\n{query}"
+                        f"ALTER TABLE {qualified} ADD PRIMARY KEY ({pk_cols})"
                     )
-                elif strategy == "replace":
-                    conn.exec_driver_sql(f"DROP TABLE IF EXISTS {qualified}")
-                    conn.exec_driver_sql(f"CREATE TABLE {qualified} AS\n{query}")
 
-                    if primary_key:
-                        pk_cols = ", ".join(f'"{c}"' for c in primary_key)
-                        conn.exec_driver_sql(
-                            f"ALTER TABLE {qualified} ADD PRIMARY KEY ({pk_cols})"
-                        )
-
-                    for idx in indexes:
-                        idx_name = idx["name"]
-                        idx_cols = ", ".join(f'"{c}"' for c in idx["columns"])
-                        unique = "UNIQUE" if idx.get("unique") else ""
-                        conn.exec_driver_sql(
-                            f'CREATE {unique} INDEX "{idx_name}" ON {qualified} ({idx_cols})'
-                        )
-                else:
-                    raise ValueError(
-                        f"Unknown strategy {strategy!r} in {self.toml_path}"
+                for idx in indexes:
+                    idx_name = idx["name"]
+                    idx_cols = ", ".join(f'"{c}"' for c in idx["columns"])
+                    unique = "UNIQUE" if idx.get("unique") else ""
+                    conn.exec_driver_sql(
+                        f'CREATE {unique} INDEX "{idx_name}" ON {qualified} ({idx_cols})'
                     )
-            progress.update(task, total=1, completed=1)
+            else:
+                raise ValueError(
+                    f"Unknown strategy {strategy!r} for {qualified} in {self.toml_path}"
+                )
+
+        progress.update(task, total=1, completed=1)

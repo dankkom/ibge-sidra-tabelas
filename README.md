@@ -286,9 +286,9 @@ meu-plugin/
 ├── README.md
 ├── manifest.toml
 └── meu_plugin/
-    ├── fetch.toml      ← template comentado com referências ao SIDRA
-    ├── transform.toml
-    └── transform.sql
+    ├── fetch.toml         ← template comentado com referências ao SIDRA
+    ├── transform.toml     ← declara as saídas (uma ou mais por pipeline)
+    └── meu_plugin.sql     ← SQL da saída (um arquivo .sql por entrada [[table]])
 ```
 
 Para o fluxo completo de criação de plugins, veja o **[Guia de Criação de Pipelines](CREATING_PIPELINES.md)**.
@@ -376,10 +376,12 @@ Para aprender a criar o seu próprio repositório de pipelines compatível com e
 
 Após a carga dos dados brutos no banco normalizado, a camada de transformação gera tabelas planas e desnormalizadas, prontas para consumo por ferramentas analíticas (Power BI, Excel, Metabase, etc.).
 
-Cada transformação é definida por um par de arquivos dentro do diretório do pipeline:
+Cada pipeline declara suas saídas em um único `transform.toml` no seu diretório:
 
-- **`transform.toml`** — metadados: nome da tabela de destino, schema e estratégia de materialização
-- **`transform.sql`** — query SELECT que produz os dados denormalizados
+- **`transform.toml`** — uma ou mais entradas `[[table]]`, cada uma especificando o nome da tabela/view de destino, schema, estratégia e o arquivo `.sql` correspondente
+- **`<saída>.sql`** — query SELECT que produz os dados denormalizados (um arquivo por entrada `[[table]]`)
+
+Um pipeline pode produzir múltiplas saídas (ex.: uma tabela detalhada + uma view agregada) declarando múltiplos blocos `[[table]]` no mesmo `transform.toml`. Cada saída é materializada na ordem do array, em sua própria transação — se uma falhar, as anteriores persistem.
 
 ### Executar uma transformação
 
@@ -388,21 +390,24 @@ A execução via CLI `sidra-sql run <plugin> <pipeline>` já orquestra de forma 
 ### Formato TOML da transformação
 
 ```toml
-[table]
+[[table]]
 name        = "ipca"           # Nome da tabela de destino
 schema      = "analytics"      # Schema de destino (criado automaticamente)
 strategy    = "replace"        # Estratégia de materialização ("replace" ou "view")
+sql         = "ipca.sql"       # Arquivo SQL (relativo a transform.toml)
 description = "IPCA - variação e peso mensal por categoria e localidade"
 primary_key = ["periodo", "localidade_id", "variavel", "categoria"] # Opcional: define PK após carga
+indexes     = [
+    { name = "idx_ipca_periodo",    columns = ["periodo"] },
+    { name = "idx_ipca_localidade", columns = ["localidade"] },
+]
 
-[[table.indexes]]             # Opcional: define índices adicionais
-name    = "idx_ipca_periodo"
-columns = ["periodo"]
-
-[[table.indexes]]
-name    = "idx_ipca_localidade"
-columns = ["localidade"]
-unique  = false
+# Saída adicional opcional — outra tabela/view do mesmo pipeline:
+[[table]]
+name     = "ipca_resumo_anual"
+schema   = "analytics"
+strategy = "view"
+sql      = "ipca_resumo.sql"
 ```
 
 **Estratégias disponíveis:**

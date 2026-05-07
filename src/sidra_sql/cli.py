@@ -197,7 +197,7 @@ def scaffold_plugin(
         console.print(f"  {slug}/")
         console.print("    fetch.toml")
         console.print("    transform.toml")
-        console.print("    transform.sql")
+        console.print(f"    {slug}.sql")
         console.print("  README.md")
         if git_init:
             console.print("  .gitignore")
@@ -208,7 +208,7 @@ def scaffold_plugin(
             f"  2. Em [cyan]{slug}/fetch.toml[/cyan], substitua XXXX pelo ID da tabela SIDRA"
         )
         console.print(
-            f"  3. Ajuste [cyan]{slug}/transform.sql[/cyan] para a sua transformação"
+            f"  3. Ajuste [cyan]{slug}/{slug}.sql[/cyan] para a sua transformação"
         )
         console.print(
             "  4. Publique o repositório e instale: "
@@ -246,7 +246,7 @@ def add_pipeline(
         console.print(f"  {adder.path}/")
         console.print("    fetch.toml")
         console.print("    transform.toml")
-        console.print("    transform.sql")
+        console.print(f"    {adder.slug}.sql")
         console.print("  manifest.toml [dim](atualizado)[/dim]\n")
 
         console.print("[bold]Próximos passos:[/bold]")
@@ -254,7 +254,7 @@ def add_pipeline(
             f"  1. Em [cyan]{adder.path}/fetch.toml[/cyan], substitua XXXX pelo ID da tabela SIDRA"
         )
         console.print(
-            f"  2. Ajuste [cyan]{adder.path}/transform.sql[/cyan] para a sua transformação"
+            f"  2. Ajuste [cyan]{adder.path}/{adder.slug}.sql[/cyan] para a sua transformação"
         )
         console.print(
             f"  3. Execute: [dim]sidra-sql run <alias> {pipeline_id}[/dim]\n"
