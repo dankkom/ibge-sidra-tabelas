@@ -20,6 +20,7 @@ from typing import Any, Callable, Iterable
 
 import sqlalchemy as sa
 from sidra_fetcher.agregados import Agregado
+from sidra_fetcher.periodos import expected_periodo_frequencias
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from . import models
@@ -456,7 +457,9 @@ def _upsert_localidades_and_dims(
 
 
 def _periodo_by_codigo_query(
-    conn: sa.Connection, codigos: set[str], frequencia: str | None = None
+    conn: sa.Connection,
+    codigos: set[str],
+    frequencias: set[str] | None = None,
 ) -> dict[str, int]:
     """Return a mapping of codigo -> periodo.id using a single batched query.
 
@@ -469,8 +472,8 @@ def _periodo_by_codigo_query(
         stmt = sa.select(models.Periodo.id, models.Periodo.codigo).where(
             models.Periodo.codigo.in_(codigos_list[i : i + _BATCH_SIZE])
         )
-        if frequencia is not None:
-            stmt = stmt.where(models.Periodo.frequencia == frequencia)
+        if frequencias:
+            stmt = stmt.where(models.Periodo.frequencia.in_(frequencias))
         for row in conn.execute(stmt):
             if row.codigo not in lookup:
                 lookup[row.codigo] = row.id
@@ -625,7 +628,9 @@ def load_dados(
                 )
             ).scalar_one_or_none()
             periodo_by_codigo = _periodo_by_codigo_query(
-                conn, seen_periodos, frequencia=periodicidade
+                conn,
+                seen_periodos,
+                frequencias=expected_periodo_frequencias(periodicidade),
             )
             logger.info(
                 "Matched %d periodos out of %d unique codigos from data",

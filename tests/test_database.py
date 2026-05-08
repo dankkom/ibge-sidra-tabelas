@@ -2,6 +2,10 @@
 # Licensed under the MIT License.
 
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
+
+import sqlalchemy as sa
 
 from sidra_sql import database
 
@@ -79,6 +83,65 @@ class TestDatabaseHelpers(unittest.TestCase):
         self.assertEqual(url.database, "db")
         # drivername should contain postgresql
         self.assertIn("postgresql", url.drivername)
+
+
+class TestPeriodoByCodigoQuery(unittest.TestCase):
+    """Verify the (codigo, frequencias) lookup that disambiguates ambiguous
+    period codes like "200702" across frequencies."""
+
+    def setUp(self):
+        self.engine = sa.create_engine("sqlite:///:memory:")
+        meta = sa.MetaData()
+        self.periodo = sa.Table(
+            "periodo",
+            meta,
+            sa.Column("id", sa.Integer, primary_key=True),
+            sa.Column("codigo", sa.Text, nullable=False),
+            sa.Column("frequencia", sa.Text),
+        )
+        meta.create_all(self.engine)
+        with self.engine.begin() as conn:
+            conn.execute(
+                self.periodo.insert(),
+                [
+                    {"id": 1, "codigo": "200702", "frequencia": "mensal"},
+                    {"id": 2, "codigo": "200702", "frequencia": "semestral"},
+                    {"id": 3, "codigo": "200701", "frequencia": "mensal"},
+                ],
+            )
+        self._patcher = patch.object(
+            database.models,
+            "Periodo",
+            SimpleNamespace(
+                id=self.periodo.c.id,
+                codigo=self.periodo.c.codigo,
+                frequencia=self.periodo.c.frequencia,
+            ),
+        )
+        self._patcher.start()
+        self.addCleanup(self._patcher.stop)
+
+    def _query(self, codigos, **kwargs):
+        with self.engine.connect() as conn:
+            return database._periodo_by_codigo_query(conn, codigos, **kwargs)
+
+    def test_mensal_resolves_to_monthly_row(self):
+        result = self._query({"200702", "200701"}, frequencias={"mensal"})
+        self.assertEqual(result, {"200702": 1, "200701": 3})
+
+    def test_semestral_resolves_to_semestral_row(self):
+        result = self._query({"200702"}, frequencias={"semestral"})
+        self.assertEqual(result, {"200702": 2})
+
+    def test_no_filter_first_match_wins(self):
+        result = self._query({"200702"}, frequencias=None)
+        self.assertEqual(set(result.keys()), {"200702"})
+        self.assertIn(result["200702"], {1, 2})
+
+    def test_empty_frequencia_set_acts_as_no_filter(self):
+        result = self._query({"200702"}, frequencias=set())
+        self.assertEqual(set(result.keys()), {"200702"})
+        self.assertIn(result["200702"], {1, 2})
 
 
 if __name__ == "__main__":
