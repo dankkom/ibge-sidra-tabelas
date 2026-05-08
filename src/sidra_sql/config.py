@@ -7,6 +7,7 @@ from logging import handlers
 from pathlib import Path
 
 import platformdirs
+from rich.logging import RichHandler
 
 APP_NAME = "sidra-sql"
 
@@ -106,10 +107,14 @@ def setup_logging(logger_name: str, log_filepath: Path):
     filehandler.setLevel(logging.INFO)
     logger.addHandler(filehandler)
 
-    # Console log — only warnings and above; progress output is handled by Rich
-    streamhandler = logging.StreamHandler()
-    streamhandler.setFormatter(log_formatter)
-    streamhandler.setLevel(logging.WARNING)
-    logger.addHandler(streamhandler)
+    # Console log — only warnings and above; RichHandler integrates with Progress bars
+    richhandler = RichHandler(
+        show_time=False,
+        show_path=False,
+        rich_tracebacks=True,
+    )
+    richhandler.setFormatter(log_formatter)
+    richhandler.setLevel(logging.WARNING)
+    logger.addHandler(richhandler)
 
     return logger
