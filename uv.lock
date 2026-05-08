@@ -277,8 +277,8 @@ wheels = [
 
 [[package]]
 name = "sidra-fetcher"
-version = "0.5.0"
-source = { git = "ssh://git@github.com/Quantilica/sidra-fetcher.git?rev=v0.5.0#2b69be206df1d2bc61f7624e3105c3ed0580443a" }
+version = "0.6.1"
+source = { git = "ssh://git@github.com/Quantilica/sidra-fetcher.git?rev=v0.6.1#3c480067971e4235c7285e325f86e810fd612b12" }
 dependencies = [
     { name = "httpx" },
     { name = "tenacity" },
@@ -302,7 +302,7 @@ requires-dist = [
     { name = "orjson", specifier = ">=3.11.7" },
     { name = "platformdirs", specifier = ">=4.9.6" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2.9" },
-    { name = "sidra-fetcher", git = "ssh://git@github.com/Quantilica/sidra-fetcher.git?rev=v0.5.0" },
+    { name = "sidra-fetcher", git = "ssh://git@github.com/Quantilica/sidra-fetcher.git?rev=v0.6.1" },
     { name = "sqlalchemy", specifier = ">=2.0.41" },
     { name = "typer", specifier = ">=0.24.1" },
 ]
