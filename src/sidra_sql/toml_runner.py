@@ -324,11 +324,21 @@ class TomlScript:
             db_global_task = progress.add_task(
                 "Carregando no banco de dados", total=n_db_files * 2, main=True
             )
+            db_task_by_table: dict[str, TaskID] = {}
+            if len(db_files_per_table) > 1:
+                for sid, count in db_files_per_table.items():
+                    db_task_by_table[sid] = progress.add_task(f"Tabela {sid}", total=count * 2)
+
             def _on_db_file_done(sid: str) -> None:
+                sub = db_task_by_table.get(sid)
+                if sub is not None:
+                    progress.advance(sub)
                 progress.advance(db_global_task)
 
             def _on_db_table_done(sid: str) -> None:
-                pass
+                sub = db_task_by_table.get(sid)
+                if sub is not None:
+                    progress.update(sub, description=f"Tabela {sid} ✓")
 
             database.load_dados(
                 engine, self.storage, data_files,
