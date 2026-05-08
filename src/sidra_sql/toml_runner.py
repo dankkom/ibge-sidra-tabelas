@@ -65,12 +65,12 @@ from rich.console import Console
 from rich.table import Table
 from rich.progress import (
     BarColumn,
+    MofNCompleteColumn,
     Progress,
     SpinnerColumn,
     TaskID,
     TextColumn,
     TimeElapsedColumn,
-    TimeRemainingColumn,
 )
 
 from . import database, models, sidra
@@ -98,10 +98,8 @@ def _make_download_progress(console: Console | None) -> Progress:
         SpinnerColumn(finished_text="[green]✓[/green]"),
         TextColumn("[progress.description]{task.description}", table_column=None),
         BarColumn(bar_width=28),
-        TextColumn("[progress.percentage]{task.percentage:>3.0f}%", style="grey70"),
+        MofNCompleteColumn(),
         TimeElapsedColumn(),
-        TextColumn("[cyan]eta[/cyan]"),
-        TimeRemainingColumn(),
         console=console,
         transient=False,
         disable=console is None,
@@ -254,17 +252,14 @@ class TomlScript:
                 for parameter, modification in self.fetcher.plan_periods(**tabela):
                     plan.append((tabela, parameter, modification))
 
+            n_plan = len(plan)
             if self.console is not None:
-                n_plan = len(plan)
                 info = Table.grid(padding=(0, 2))
                 info.add_column(style="bold")
                 info.add_column()
                 info.add_row("Pipeline", str(self.toml_path))
                 info.add_row("Tabelas", f"{n_meta} {s_meta}")
-                if n != n_meta:
-                    info.add_row("Requisições por período", str(n))
-                n_periods = n_plan // n if n and n_plan % n == 0 else n_plan
-                info.add_row("Períodos", str(n_periods))
+                info.add_row("Arquivos", str(n_plan))
                 info.add_row("Threads", str(self.fetcher.max_workers))
                 info.add_row(
                     "Banco",
@@ -281,15 +276,14 @@ class TomlScript:
                 files_per_table[sid] = files_per_table.get(sid, 0) + 1
 
             with _make_download_progress(self.console) as progress:
+                global_task = progress.add_task("Download", total=n_plan)
                 task_by_table: dict[str, TaskID] = {}
-                for sid, n in files_per_table.items():
-                    s = "arquivo" if n == 1 else "arquivos"
-                    task_by_table[sid] = progress.add_task(
-                        f"Tabela {sid} ({n} {s})", total=n
-                    )
+                for sid, count in files_per_table.items():
+                    task_by_table[sid] = progress.add_task(f"Tabela {sid}", total=count)
 
                 def _on_done(key: dict[str, Any]) -> None:
                     progress.advance(task_by_table[key["sidra_tabela"]])
+                    progress.advance(global_task)
 
                 results = self.fetcher.download_periods(plan, on_file_done=_on_done)
                 data_files = [
@@ -298,8 +292,31 @@ class TomlScript:
                 ]
                 for sid, task_id in task_by_table.items():
                     progress.update(task_id, description=f"Tabela {sid} ✓")
+                progress.update(global_task, description="Download concluído ✓")
 
-        with _make_progress(self.console) as progress:
-            db_task = progress.add_task("Carregando no banco de dados", total=None)
-            database.load_dados(engine, self.storage, data_files)
-            progress.update(db_task, total=1, completed=1, description="Carregamento concluído")
+        with _make_download_progress(self.console) as progress:
+            db_files_per_table: dict[str, int] = {}
+            for d in data_files:
+                sid = str(d["sidra_tabela"])
+                db_files_per_table[sid] = db_files_per_table.get(sid, 0) + 1
+            n_db_files = sum(db_files_per_table.values())
+            db_global_task = progress.add_task(
+                "Carregando no banco de dados", total=n_db_files * 2
+            )
+            db_task_by_table: dict[str, TaskID] = {}
+            for sid, count in db_files_per_table.items():
+                db_task_by_table[sid] = progress.add_task(f"Tabela {sid}", total=count * 2)
+
+            def _on_db_file_done(sid: str) -> None:
+                progress.advance(db_task_by_table[sid])
+                progress.advance(db_global_task)
+
+            def _on_db_table_done(sid: str) -> None:
+                progress.update(db_task_by_table[sid], description=f"Tabela {sid} ✓")
+
+            database.load_dados(
+                engine, self.storage, data_files,
+                on_file_done=_on_db_file_done,
+                on_table_done=_on_db_table_done,
+            )
+            progress.update(db_global_task, description="Carregamento concluído ✓")

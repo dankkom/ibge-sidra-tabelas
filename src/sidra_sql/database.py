@@ -16,7 +16,7 @@ Public functions:
 import itertools
 import json
 import logging
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 import sqlalchemy as sa
 from sidra_fetcher.agregados import Agregado
@@ -366,7 +366,9 @@ def _dim_key(r: dict) -> tuple:
 
 
 def _collect_upsert_data(
-    storage: Storage, table_files: list[dict]
+    storage: Storage,
+    table_files: list[dict],
+    on_file_done: Callable[[], None] | None = None,
 ) -> tuple[
     list[dict], list[dict], set[tuple], Iterable[tuple], set[str], bool
 ]:
@@ -422,6 +424,9 @@ def _collect_upsert_data(
             d3c = _coerce(row.get("D3C"))
             if d3c:
                 seen_periodos.add(d3c)
+
+        if on_file_done is not None:
+            on_file_done()
 
     return (
         loc_dicts,
@@ -484,6 +489,7 @@ def _stream_staging(
     loc_lookup: dict[tuple, int],
     dim_lookup: dict[tuple, int],
     periodo_by_codigo: dict[str, int],
+    on_file_done: Callable[[], None] | None = None,
 ) -> tuple[int, int, int, int, int, int]:
     """Stream resolved rows into the staging table via COPY, then flush to dados.
 
@@ -528,6 +534,9 @@ def _stream_staging(
                     )
                     n_rows += 1
 
+                if on_file_done is not None:
+                    on_file_done()
+
         cur.execute(_STAGING_INSERT)
         n_inserted = cur.rowcount
         cur.execute(_STAGING_DEACTIVATE)
@@ -547,6 +556,8 @@ def load_dados(
     engine: sa.Engine,
     storage: Storage,
     data_files: list[dict[str, Any]],
+    on_file_done: Callable[[str], None] | None = None,
+    on_table_done: Callable[[str], None] | None = None,
 ):
     """Load data rows from JSON files into the dados table.
 
@@ -568,6 +579,12 @@ def load_dados(
         files_by_table.setdefault(sidra_tabela_id, []).append(data_file)
 
     for sidra_tabela_id, table_files in files_by_table.items():
+        _file_done: Callable[[], None] | None = None
+        if on_file_done is not None:
+            sid = sidra_tabela_id
+            def _file_done(s=sid) -> None:
+                on_file_done(s)
+
         (
             loc_dicts,
             dim_dicts,
@@ -575,10 +592,12 @@ def load_dados(
             seen_dim_lookup,
             seen_periodos,
             has_data,
-        ) = _collect_upsert_data(storage, table_files)
+        ) = _collect_upsert_data(storage, table_files, on_file_done=_file_done)
 
         if not has_data:
             logger.info("No data rows found for table %s", sidra_tabela_id)
+            if on_table_done is not None:
+                on_table_done(sidra_tabela_id)
             continue
 
         logger.info(
@@ -621,8 +640,12 @@ def load_dados(
                 loc_lookup,
                 dim_lookup,
                 periodo_by_codigo,
+                on_file_done=_file_done,
             )
             conn.commit()
+
+        if on_table_done is not None:
+            on_table_done(sidra_tabela_id)
 
         if missing_dims > 0:
             logger.warning(
