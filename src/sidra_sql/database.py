@@ -456,7 +456,7 @@ def _upsert_localidades_and_dims(
 
 
 def _periodo_by_codigo_query(
-    conn: sa.Connection, codigos: set[str]
+    conn: sa.Connection, codigos: set[str], frequencia: str | None = None
 ) -> dict[str, int]:
     """Return a mapping of codigo -> periodo.id using a single batched query.
 
@@ -469,6 +469,8 @@ def _periodo_by_codigo_query(
         stmt = sa.select(models.Periodo.id, models.Periodo.codigo).where(
             models.Periodo.codigo.in_(codigos_list[i : i + _BATCH_SIZE])
         )
+        if frequencia is not None:
+            stmt = stmt.where(models.Periodo.frequencia == frequencia)
         for row in conn.execute(stmt):
             if row.codigo not in lookup:
                 lookup[row.codigo] = row.id
@@ -617,7 +619,14 @@ def load_dados(
 
             loc_lookup = _localidade_lookup_query(conn, keys=seen_locs)
             dim_lookup = _dimensao_lookup_query(conn, keys=seen_dim_lookup)
-            periodo_by_codigo = _periodo_by_codigo_query(conn, seen_periodos)
+            periodicidade = conn.execute(
+                sa.select(models.SidraTabela.periodicidade).where(
+                    models.SidraTabela.id == sidra_tabela_id
+                )
+            ).scalar_one_or_none()
+            periodo_by_codigo = _periodo_by_codigo_query(
+                conn, seen_periodos, frequencia=periodicidade
+            )
             logger.info(
                 "Matched %d periodos out of %d unique codigos from data",
                 len(periodo_by_codigo),
