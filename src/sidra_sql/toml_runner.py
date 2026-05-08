@@ -63,6 +63,7 @@ from typing import Any, Iterable
 import sqlalchemy as sa
 from rich.console import Console
 from rich.table import Table
+from rich.text import Text
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -71,6 +72,7 @@ from rich.progress import (
     TaskID,
     TextColumn,
     TimeElapsedColumn,
+    TimeRemainingColumn,
 )
 
 from . import database, models, sidra
@@ -80,13 +82,28 @@ from .storage import Storage
 logger = logging.getLogger(__name__)
 
 
+class _MainOnlyTimeElapsedColumn(TimeElapsedColumn):
+    def render(self, task):
+        if not task.fields.get("main"):
+            return Text("")
+        return super().render(task)
+
+
+class _MainOnlyTimeRemainingColumn(TimeRemainingColumn):
+    def render(self, task):
+        if not task.fields.get("main"):
+            return Text("")
+        return super().render(task)
+
+
 def _make_progress(console: Console | None) -> Progress:
     return Progress(
         SpinnerColumn(finished_text="[green]✓[/green]"),
         TextColumn("[progress.description]{task.description}", table_column=None),
         BarColumn(bar_width=28),
         TextColumn("[progress.percentage]{task.percentage:>3.0f}%", style="grey70"),
-        TimeElapsedColumn(),
+        _MainOnlyTimeElapsedColumn(),
+        _MainOnlyTimeRemainingColumn(),
         console=console,
         transient=False,
         disable=console is None,
@@ -99,7 +116,8 @@ def _make_download_progress(console: Console | None) -> Progress:
         TextColumn("[progress.description]{task.description}", table_column=None),
         BarColumn(bar_width=28),
         MofNCompleteColumn(),
-        TimeElapsedColumn(),
+        _MainOnlyTimeElapsedColumn(),
+        _MainOnlyTimeRemainingColumn(),
         console=console,
         transient=False,
         disable=console is None,
@@ -243,7 +261,7 @@ class TomlScript:
 
         with self.fetcher:
             with _make_progress(self.console) as progress:
-                meta_task = progress.add_task(f"Metadados ({n_meta} {s_meta})", total=None)
+                meta_task = progress.add_task(f"Metadados ({n_meta} {s_meta})", total=None, main=True)
                 self.load_metadata(engine, tabelas)
                 progress.update(meta_task, total=1, completed=1, description=f"Metadados ({n_meta} {s_meta})")
 
@@ -276,13 +294,16 @@ class TomlScript:
                 files_per_table[sid] = files_per_table.get(sid, 0) + 1
 
             with _make_download_progress(self.console) as progress:
-                global_task = progress.add_task("Download", total=n_plan)
+                global_task = progress.add_task("Download", total=n_plan, main=True)
                 task_by_table: dict[str, TaskID] = {}
-                for sid, count in files_per_table.items():
-                    task_by_table[sid] = progress.add_task(f"Tabela {sid}", total=count)
+                if len(files_per_table) > 1:
+                    for sid, count in files_per_table.items():
+                        task_by_table[sid] = progress.add_task(f"Tabela {sid}", total=count)
 
                 def _on_done(key: dict[str, Any]) -> None:
-                    progress.advance(task_by_table[key["sidra_tabela"]])
+                    sub = task_by_table.get(key["sidra_tabela"])
+                    if sub is not None:
+                        progress.advance(sub)
                     progress.advance(global_task)
 
                 results = self.fetcher.download_periods(plan, on_file_done=_on_done)
@@ -301,18 +322,23 @@ class TomlScript:
                 db_files_per_table[sid] = db_files_per_table.get(sid, 0) + 1
             n_db_files = sum(db_files_per_table.values())
             db_global_task = progress.add_task(
-                "Carregando no banco de dados", total=n_db_files * 2
+                "Carregando no banco de dados", total=n_db_files * 2, main=True
             )
             db_task_by_table: dict[str, TaskID] = {}
-            for sid, count in db_files_per_table.items():
-                db_task_by_table[sid] = progress.add_task(f"Tabela {sid}", total=count * 2)
+            if len(db_files_per_table) > 1:
+                for sid, count in db_files_per_table.items():
+                    db_task_by_table[sid] = progress.add_task(f"Tabela {sid}", total=count * 2)
 
             def _on_db_file_done(sid: str) -> None:
-                progress.advance(db_task_by_table[sid])
+                sub = db_task_by_table.get(sid)
+                if sub is not None:
+                    progress.advance(sub)
                 progress.advance(db_global_task)
 
             def _on_db_table_done(sid: str) -> None:
-                progress.update(db_task_by_table[sid], description=f"Tabela {sid} ✓")
+                sub = db_task_by_table.get(sid)
+                if sub is not None:
+                    progress.update(sub, description=f"Tabela {sid} ✓")
 
             database.load_dados(
                 engine, self.storage, data_files,
