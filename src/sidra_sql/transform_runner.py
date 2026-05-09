@@ -121,7 +121,7 @@ class TransformRunner:
                 f"{self.toml_path}: arquivo SQL '{sql_rel}' não encontrado em "
                 f"{self.toml_path.parent}"
             )
-        query = sql_path.read_text(encoding="utf-8").strip()
+        query = sql_path.read_text(encoding="utf-8").strip().replace("%", "%%")
 
         qualified = f'"{schema}"."{name}"'
         strategy_label = {"replace": "tabela", "view": "view"}.get(
