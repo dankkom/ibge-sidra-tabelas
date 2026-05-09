@@ -10,13 +10,13 @@ from sidra_sql.toml_runner import TomlScript
 
 SIMPLE_TOML = b"""
 [[tabelas]]
-sidra_tabela = "1"
+tabela_sidra = "1"
 territories = {6 = ["1"]}
 """
 
 PARTIAL_UNNEST_TOML = b"""
 [[tabelas]]
-sidra_tabela = "5938"
+tabela_sidra = "5938"
 variables = ["allxp"]
 territories = {6 = []}
 classifications = {81 = ["allxt"]}
@@ -47,7 +47,11 @@ class TestTomlScript(unittest.TestCase):
 
             def download_periods(self, plan, on_file_done=None):
                 return [
-                    {"key": key, "filepath": Path("/tmp/f1.csv"), "modificacao": mod}
+                    {
+                        "key": key,
+                        "filepath": Path("/tmp/f1.csv"),
+                        "modificacao": mod,
+                    }
                     for key, _param, mod in plan
                 ]
 
@@ -58,7 +62,7 @@ class TestTomlScript(unittest.TestCase):
         self.assertEqual(len(data_files), 1)
         self.assertIn("filepath", data_files[0])
         self.assertIn("modificacao", data_files[0])
-        self.assertEqual(data_files[0]["sidra_tabela"], "1")
+        self.assertEqual(data_files[0]["tabela_sidra"], "1")
 
     def test_load_metadata_reads_from_cache_when_file_exists(self):
         """load_metadata uses the cached file and never calls the API."""
@@ -77,7 +81,7 @@ class TestTomlScript(unittest.TestCase):
         script.fetcher.fetch_metadata = mock.MagicMock()
 
         with mock.patch("sidra_sql.database.save_agregado") as save_mock:
-            script.load_metadata(engine, [{"sidra_tabela": "99"}])
+            script.load_metadata(engine, [{"tabela_sidra": "99"}])
 
         script.storage.read_metadata.assert_called_once_with("99")
         script.fetcher.fetch_metadata.assert_not_called()
@@ -100,14 +104,14 @@ class TestTomlScript(unittest.TestCase):
         script.storage.write_metadata = mock.MagicMock()
 
         with mock.patch("sidra_sql.database.save_agregado") as save_mock:
-            script.load_metadata(engine, [{"sidra_tabela": "7"}])
+            script.load_metadata(engine, [{"tabela_sidra": "7"}])
 
         script.fetcher.fetch_metadata.assert_called_once_with("7")
         script.storage.write_metadata.assert_called_once_with(fake_agregado)
         save_mock.assert_called_once_with(engine, fake_agregado)
 
     def test_load_metadata_deduplicates_repeated_table_ids(self):
-        """load_metadata processes each unique sidra_tabela only once."""
+        """load_metadata processes each unique tabela_sidra only once."""
         script = make_script()
         engine = mock.MagicMock()
 
@@ -124,13 +128,12 @@ class TestTomlScript(unittest.TestCase):
             script.load_metadata(
                 engine,
                 [
-                    {"sidra_tabela": "5"},
-                    {"sidra_tabela": "5"},  # duplicate
+                    {"tabela_sidra": "5"},
+                    {"tabela_sidra": "5"},  # duplicate
                 ],
             )
 
         self.assertEqual(save_mock.call_count, 1)
-
 
     def test_get_tabelas_partial_unnest(self):
         """unnest_classifications=[list] unnests only named IDs, merges static classifications."""
@@ -152,7 +155,9 @@ class TestTomlScript(unittest.TestCase):
             classificacoes = [_Cls(87, [10, 20]), _Cls(99, [5])]
 
         script.fetcher.sidra_client = mock.MagicMock()
-        script.fetcher.sidra_client.get_agregado_metadados.return_value = _Meta()
+        script.fetcher.sidra_client.get_agregado_metadados.return_value = (
+            _Meta()
+        )
 
         result = list(script.get_tabelas())
 

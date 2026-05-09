@@ -106,7 +106,9 @@ class PluginValidator:
                 manifest_section.error(f"{entry}: campo 'id' ausente")
                 continue
             if not ppath:
-                manifest_section.error(f"pipeline '{pid}': campo 'path' ausente")
+                manifest_section.error(
+                    f"pipeline '{pid}': campo 'path' ausente"
+                )
                 continue
             if pid in ids_seen:
                 manifest_section.error(f"ID duplicado: '{pid}'")
@@ -122,7 +124,9 @@ class PluginValidator:
 
         return report
 
-    def _validate_pipeline(self, pid: str, rel_path: str, section: SectionReport) -> None:
+    def _validate_pipeline(
+        self, pid: str, rel_path: str, section: SectionReport
+    ) -> None:
         pipeline_dir = self.plugin_dir / rel_path
 
         if not pipeline_dir.exists():
@@ -142,7 +146,9 @@ class PluginValidator:
         if has_transform:
             self._validate_transform_toml(pipeline_dir, section)
 
-    def _validate_fetch_toml(self, pipeline_dir: Path, section: SectionReport) -> None:
+    def _validate_fetch_toml(
+        self, pipeline_dir: Path, section: SectionReport
+    ) -> None:
         fetch_path = pipeline_dir / "fetch.toml"
         try:
             with open(fetch_path, "rb") as f:
@@ -157,12 +163,16 @@ class PluginValidator:
             return
 
         for i, t in enumerate(tabelas):
-            if "sidra_tabela" not in t:
-                section.error(f"fetch.toml: tabelas[{i}] sem campo 'sidra_tabela'")
+            if "tabela_sidra" not in t:
+                section.error(
+                    f"fetch.toml: tabelas[{i}] sem campo 'tabela_sidra'"
+                )
 
         section.ok(f"fetch.toml válido ({len(tabelas)} tabela(s))")
 
-    def _validate_transform_toml(self, pipeline_dir: Path, section: SectionReport) -> None:
+    def _validate_transform_toml(
+        self, pipeline_dir: Path, section: SectionReport
+    ) -> None:
         transform_path = pipeline_dir / "transform.toml"
         try:
             with open(transform_path, "rb") as f:
@@ -186,7 +196,9 @@ class PluginValidator:
         any_error = False
         for i, t in enumerate(tables):
             entry = f"[[table]][{i}]"
-            missing = [f for f in ("name", "schema", "strategy", "sql") if f not in t]
+            missing = [
+                f for f in ("name", "schema", "strategy", "sql") if f not in t
+            ]
             if missing:
                 section.error(
                     f"transform.toml: {entry} sem campo(s) obrigatório(s): "

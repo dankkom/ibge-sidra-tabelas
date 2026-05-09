@@ -25,9 +25,8 @@ class Base(DeclarativeBase):
     pass
 
 
-class SidraTabela(Base):
-    __tablename__ = "sidra_tabela"
-
+class TabelaSidra(Base):
+    __tablename__ = "tabela_sidra"
     id: Mapped[str] = mapped_column(Text, primary_key=True)
     nome: Mapped[str] = mapped_column(Text, nullable=False)
     periodicidade: Mapped[str] = mapped_column(Text, nullable=False)
@@ -38,7 +37,7 @@ class SidraTabela(Base):
         onupdate=func.now(),
     )
     metadados: Mapped[JSONB] = mapped_column(JSONB, nullable=True)
-    dados = relationship("Dados", back_populates="sidra_tabela")
+    dados = relationship("Dados", back_populates="tabela_sidra")
 
 
 class Localidade(Base):
@@ -163,9 +162,9 @@ class Dimensao(Base):
 class Dados(Base):
     __tablename__ = "dados"
     __table_args__ = (
-        sa.Index("ix_dados_periodo", "sidra_tabela_id", "periodo_id"),
+        sa.Index("ix_dados_periodo", "tabela_sidra_id", "periodo_id"),
         UniqueConstraint(
-            "sidra_tabela_id",
+            "tabela_sidra_id",
             "localidade_id",
             "dimensao_id",
             "periodo_id",
@@ -178,12 +177,12 @@ class Dados(Base):
         Identity(always=True),
         primary_key=True,
     )
-    sidra_tabela_id: Mapped[str] = mapped_column(
-        ForeignKey("sidra_tabela.id"),
+    tabela_sidra_id: Mapped[str] = mapped_column(
+        ForeignKey("tabela_sidra.id"),
         nullable=False,
         index=True,
     )
-    sidra_tabela = relationship("SidraTabela", back_populates="dados")
+    tabela_sidra = relationship("TabelaSidra", back_populates="dados")
     dimensao_id: Mapped[int] = mapped_column(
         ForeignKey("dimensao.id"),
         nullable=False,

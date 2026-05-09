@@ -30,25 +30,25 @@ Example TOML
 ::
 
     [[tabelas]]
-    sidra_tabela = "5938"
+    tabela_sidra = "5938"
     variables = ["37", "498"]
     territories = {6 = ["all"]}
 
     [[tabelas]]
-    sidra_tabela = "1613"
+    tabela_sidra = "1613"
     variables = ["allxp"]
     territories = {6 = []}
     unnest_classifications = true
 
     [[tabelas]]
-    sidra_tabela = "5938"
+    tabela_sidra = "5938"
     variables = ["allxp"]
     territories = {6 = []}
     classifications = {81 = ["allxt"]}
     unnest_classifications = ["87"]
 
     [[tabelas]]
-    sidra_tabela = "1002"
+    tabela_sidra = "1002"
     variables = ["109", "216", "214", "112"]
     split_variables = true
     territories = {6 = []}
@@ -99,9 +99,13 @@ class _MainOnlyTimeRemainingColumn(TimeRemainingColumn):
 def _make_progress(console: Console | None) -> Progress:
     return Progress(
         SpinnerColumn(finished_text="[green]✓[/green]"),
-        TextColumn("[progress.description]{task.description}", table_column=None),
+        TextColumn(
+            "[progress.description]{task.description}", table_column=None
+        ),
         BarColumn(bar_width=28),
-        TextColumn("[progress.percentage]{task.percentage:>3.0f}%", style="grey70"),
+        TextColumn(
+            "[progress.percentage]{task.percentage:>3.0f}%", style="grey70"
+        ),
         _MainOnlyTimeElapsedColumn(),
         _MainOnlyTimeRemainingColumn(),
         console=console,
@@ -113,7 +117,9 @@ def _make_progress(console: Console | None) -> Progress:
 def _make_download_progress(console: Console | None) -> Progress:
     return Progress(
         SpinnerColumn(finished_text="[green]✓[/green]"),
-        TextColumn("[progress.description]{task.description}", table_column=None),
+        TextColumn(
+            "[progress.description]{task.description}", table_column=None
+        ),
         BarColumn(bar_width=28),
         MofNCompleteColumn(),
         _MainOnlyTimeElapsedColumn(),
@@ -130,7 +136,7 @@ class TomlScript:
     Drives the full pipeline:
 
     1. Create ORM tables if they don't exist.
-    2. Fetch and save metadata (sidra_tabela, localidade).
+    2. Fetch and save metadata (tabela_sidra, localidade).
     3. Download all data files.
     4. Load data rows into the dados table (also upserts dimensions).
     """
@@ -165,7 +171,7 @@ class TomlScript:
 
             if unnest is not False:
                 metadados = self.fetcher.sidra_client.get_agregado_metadados(
-                    entry["sidra_tabela"]
+                    entry["tabela_sidra"]
                 )
                 if unnest is True:
                     entry.pop("classifications", None)
@@ -174,16 +180,25 @@ class TomlScript:
                 else:
                     unnest_ids = {str(u) for u in unnest}
                     to_unnest = [
-                        c for c in metadados.classificacoes
+                        c
+                        for c in metadados.classificacoes
                         if str(c.id) in unnest_ids
                     ]
                     static_cls = entry.pop("classifications", {})
                     for c in metadados.classificacoes:
                         cls_id = str(c.id)
-                        if cls_id not in unnest_ids and cls_id not in static_cls:
+                        if (
+                            cls_id not in unnest_ids
+                            and cls_id not in static_cls
+                        ):
                             static_cls[cls_id] = ["all"]
                 for cls_combo in sidra.unnest_classificacoes(to_unnest):
-                    result.append({**entry, "classifications": {**static_cls, **cls_combo}})
+                    result.append(
+                        {
+                            **entry,
+                            "classifications": {**static_cls, **cls_combo},
+                        }
+                    )
             elif split_vars:
                 variables = entry.pop("variables")
                 for var in variables:
@@ -208,7 +223,8 @@ class TomlScript:
                 plan.append((tabela, parameter, modification))
         results = self.fetcher.download_periods(plan)
         return [
-            r["key"] | {"filepath": r["filepath"], "modificacao": r["modificacao"]}
+            r["key"]
+            | {"filepath": r["filepath"], "modificacao": r["modificacao"]}
             for r in results
         ]
 
@@ -218,26 +234,26 @@ class TomlScript:
         """Fetch and persist metadata for all unique SIDRA tables."""
         seen: set[str] = set()
         for tabela in tabelas:
-            sidra_tabela_id = tabela["sidra_tabela"]
-            if sidra_tabela_id in seen:
+            tabela_sidra_id = tabela["tabela_sidra"]
+            if tabela_sidra_id in seen:
                 continue
-            seen.add(sidra_tabela_id)
+            seen.add(tabela_sidra_id)
 
             metadata_filepath = self.storage.get_metadata_filepath(
-                sidra_tabela_id
+                tabela_sidra_id
             )
             if metadata_filepath.exists() and not self.force_metadata:
                 logger.info(
-                    "Reading cached metadata for table %s", sidra_tabela_id
+                    "Reading cached metadata for table %s", tabela_sidra_id
                 )
-                agregado = self.storage.read_metadata(sidra_tabela_id)
+                agregado = self.storage.read_metadata(tabela_sidra_id)
             else:
-                logger.info("Fetching metadata for table %s", sidra_tabela_id)
-                agregado = self.fetcher.fetch_metadata(sidra_tabela_id)
+                logger.info("Fetching metadata for table %s", tabela_sidra_id)
+                agregado = self.fetcher.fetch_metadata(tabela_sidra_id)
                 self.storage.write_metadata(agregado)
 
             logger.info(
-                "Saving metadata to database for table %s", sidra_tabela_id
+                "Saving metadata to database for table %s", tabela_sidra_id
             )
             database.save_agregado(engine, agregado)
 
@@ -256,18 +272,27 @@ class TomlScript:
         tabelas = list(self.get_tabelas())
         n = len(tabelas)
         s = "tabela" if n == 1 else "tabelas"
-        n_meta = len({t["sidra_tabela"] for t in tabelas})
+        n_meta = len({t["tabela_sidra"] for t in tabelas})
         s_meta = "tabela" if n_meta == 1 else "tabelas"
 
         with self.fetcher:
             with _make_progress(self.console) as progress:
-                meta_task = progress.add_task(f"Metadados ({n_meta} {s_meta})", total=None, main=True)
+                meta_task = progress.add_task(
+                    f"Metadados ({n_meta} {s_meta})", total=None, main=True
+                )
                 self.load_metadata(engine, tabelas)
-                progress.update(meta_task, total=1, completed=1, description=f"Metadados ({n_meta} {s_meta})")
+                progress.update(
+                    meta_task,
+                    total=1,
+                    completed=1,
+                    description=f"Metadados ({n_meta} {s_meta})",
+                )
 
             plan: list[tuple[dict[str, Any], Any, str]] = []
             for tabela in tabelas:
-                for parameter, modification in self.fetcher.plan_periods(**tabela):
+                for parameter, modification in self.fetcher.plan_periods(
+                    **tabela
+                ):
                     plan.append((tabela, parameter, modification))
 
             n_plan = len(plan)
@@ -290,35 +315,47 @@ class TomlScript:
 
             files_per_table: dict[str, int] = {}
             for tabela, _, _ in plan:
-                sid = tabela["sidra_tabela"]
+                sid = tabela["tabela_sidra"]
                 files_per_table[sid] = files_per_table.get(sid, 0) + 1
 
             with _make_download_progress(self.console) as progress:
-                global_task = progress.add_task("Download", total=n_plan, main=True)
+                global_task = progress.add_task(
+                    "Download", total=n_plan, main=True
+                )
                 task_by_table: dict[str, TaskID] = {}
                 if len(files_per_table) > 1:
                     for sid, count in files_per_table.items():
-                        task_by_table[sid] = progress.add_task(f"Tabela {sid}", total=count)
+                        task_by_table[sid] = progress.add_task(
+                            f"Tabela {sid}", total=count
+                        )
 
                 def _on_done(key: dict[str, Any]) -> None:
-                    sub = task_by_table.get(key["sidra_tabela"])
+                    sub = task_by_table.get(key["tabela_sidra"])
                     if sub is not None:
                         progress.advance(sub)
                     progress.advance(global_task)
 
-                results = self.fetcher.download_periods(plan, on_file_done=_on_done)
+                results = self.fetcher.download_periods(
+                    plan, on_file_done=_on_done
+                )
                 data_files = [
-                    r["key"] | {"filepath": r["filepath"], "modificacao": r["modificacao"]}
+                    r["key"]
+                    | {
+                        "filepath": r["filepath"],
+                        "modificacao": r["modificacao"],
+                    }
                     for r in results
                 ]
                 for sid, task_id in task_by_table.items():
                     progress.update(task_id, description=f"Tabela {sid} ✓")
-                progress.update(global_task, description="Download concluído ✓")
+                progress.update(
+                    global_task, description="Download concluído ✓"
+                )
 
         with _make_download_progress(self.console) as progress:
             db_files_per_table: dict[str, int] = {}
             for d in data_files:
-                sid = str(d["sidra_tabela"])
+                sid = str(d["tabela_sidra"])
                 db_files_per_table[sid] = db_files_per_table.get(sid, 0) + 1
             n_db_files = sum(db_files_per_table.values())
             db_global_task = progress.add_task(
@@ -327,7 +364,9 @@ class TomlScript:
             db_task_by_table: dict[str, TaskID] = {}
             if len(db_files_per_table) > 1:
                 for sid, count in db_files_per_table.items():
-                    db_task_by_table[sid] = progress.add_task(f"Tabela {sid}", total=count * 2)
+                    db_task_by_table[sid] = progress.add_task(
+                        f"Tabela {sid}", total=count * 2
+                    )
 
             def _on_db_file_done(sid: str) -> None:
                 sub = db_task_by_table.get(sid)
@@ -341,8 +380,12 @@ class TomlScript:
                     progress.update(sub, description=f"Tabela {sid} ✓")
 
             database.load_dados(
-                engine, self.storage, data_files,
+                engine,
+                self.storage,
+                data_files,
                 on_file_done=_on_db_file_done,
                 on_table_done=_on_db_table_done,
             )
-            progress.update(db_global_task, description="Carregamento concluído ✓")
+            progress.update(
+                db_global_task, description="Carregamento concluído ✓"
+            )

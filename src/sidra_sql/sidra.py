@@ -79,7 +79,7 @@ class Fetcher:
 
     def plan_periods(
         self,
-        sidra_tabela: str,
+        tabela_sidra: str,
         territories: dict[str, list[str]],
         variables: list[str] | None = None,
         classifications: dict[str, list[str]] | None = None,
@@ -90,7 +90,7 @@ class Fetcher:
         a flat plan concurrently across many tables.
 
         Args:
-            sidra_tabela: SIDRA table code (numeric string accepted).
+            tabela_sidra: SIDRA table code (numeric string accepted).
             territories: Mapping of territory type codes to lists of
                 territory identifiers.
             variables: Optional list of variable codes. Defaults to ["all"].
@@ -107,12 +107,12 @@ class Fetcher:
 
         # Use cached metadata when available — avoids redundant round-trips
         # after load_metadata has already fetched and stored the Agregado.
-        metadata_path = self.storage.get_metadata_filepath(sidra_tabela)
+        metadata_path = self.storage.get_metadata_filepath(tabela_sidra)
         if metadata_path.exists():
-            metadados = self.storage.read_metadata(sidra_tabela)
+            metadados = self.storage.read_metadata(tabela_sidra)
         else:
             metadados = self.sidra_client.get_agregado_metadados(
-                int(sidra_tabela)
+                int(tabela_sidra)
             )
 
         if classifications is None:
@@ -121,13 +121,13 @@ class Fetcher:
         periodos = getattr(
             metadados, "periodos", None
         ) or self.sidra_client.get_agregado_periodos(
-            agregado_id=int(sidra_tabela)
+            agregado_id=int(tabela_sidra)
         )
 
         period_params: list[tuple[Parametro, str]] = []
         for periodo in periodos:
             parameter = Parametro(
-                agregado=sidra_tabela,
+                agregado=tabela_sidra,
                 territorios=territories,
                 variaveis=variables,
                 periodos=[periodo.id],
@@ -166,17 +166,21 @@ class Fetcher:
         executor = ThreadPoolExecutor(max_workers=self.max_workers)
         try:
             future_to_meta = {
-                executor.submit(self._download_period, parameter, modification): (key, modification)
+                executor.submit(
+                    self._download_period, parameter, modification
+                ): (key, modification)
                 for key, parameter, modification in plan
             }
             for future in as_completed(future_to_meta):
                 key, modification = future_to_meta[future]
                 try:
-                    results.append({
-                        "key": key,
-                        "filepath": future.result(),
-                        "modificacao": modification,
-                    })
+                    results.append(
+                        {
+                            "key": key,
+                            "filepath": future.result(),
+                            "modificacao": modification,
+                        }
+                    )
                 except Exception as e:
                     logger.error("Period download failed: %s", e)
                     errors.append(e)
@@ -194,7 +198,7 @@ class Fetcher:
 
     def download_table(
         self,
-        sidra_tabela: str,
+        tabela_sidra: str,
         territories: dict[str, list[str]],
         variables: list[str] | None = None,
         classifications: dict[str, list[str]] | None = None,
@@ -213,7 +217,7 @@ class Fetcher:
         plan = [
             (None, parameter, modification)
             for parameter, modification in self.plan_periods(
-                sidra_tabela=sidra_tabela,
+                tabela_sidra=tabela_sidra,
                 territories=territories,
                 variables=variables,
                 classifications=classifications,
@@ -225,9 +229,9 @@ class Fetcher:
             for r in results
         ]
 
-    def fetch_metadata(self, sidra_tabela: str) -> Agregado:
+    def fetch_metadata(self, tabela_sidra: str) -> Agregado:
         """Fetch full metadata for a SIDRA table including localidades and periodos."""
-        agregado = self.sidra_client.get_agregado_metadados(int(sidra_tabela))
+        agregado = self.sidra_client.get_agregado_metadados(int(tabela_sidra))
 
         all_niveis = (
             agregado.nivel_territorial.administrativo
@@ -239,7 +243,7 @@ class Fetcher:
             loc_futures = [
                 executor.submit(
                     self.sidra_client.get_agregado_localidades,
-                    agregado_id=int(sidra_tabela),
+                    agregado_id=int(tabela_sidra),
                     localidades_nivel=nivel,
                 )
                 for nivel in all_niveis
@@ -251,7 +255,7 @@ class Fetcher:
 
         agregado.localidades = localidades
         agregado.periodos = self.sidra_client.get_agregado_periodos(
-            int(sidra_tabela)
+            int(tabela_sidra)
         )
         return agregado
 

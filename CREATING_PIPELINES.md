@@ -133,7 +133,7 @@ sidra-sql plugin install https://github.com/seu-usuario/meu-plugin.git --alias m
 |---|---|---|
 | `manifest.toml` | TOML inválido, `id`/`path` ausentes, IDs duplicados | `name`/`version` ausentes, nenhum pipeline declarado |
 | Diretório do pipeline | Diretório não existe | — |
-| `fetch.toml` | TOML inválido, nenhuma `[[tabelas]]`, `sidra_tabela` ausente | — |
+| `fetch.toml` | TOML inválido, nenhuma `[[tabelas]]`, `tabela_sidra` ausente | — |
 | `transform.toml` | TOML inválido, nenhum `[[table]]` declarado, uso do schema antigo `[table]` singular, campos `name`/`schema`/`strategy`/`sql` faltando, `strategy` inválido, saídas duplicadas (mesmo `schema.name`) | — |
 | Arquivos SQL | Arquivo referenciado em `[[table]].sql` não encontrado no diretório | — |
 
@@ -259,7 +259,7 @@ O `fetch.toml` declara uma lista de entradas `[[tabelas]]`. Cada entrada é uma 
 
 ```toml
 [[tabelas]]
-sidra_tabela    = "1613"            # ID da tabela no SIDRA (obrigatório)
+tabela_sidra    = "1613"            # ID da tabela no SIDRA (obrigatório)
 variables       = ["allxp"]         # IDs das variáveis, ou "allxp" para todas
 territories     = {6 = []}          # nível territorial → IDs ([] = todos)
 classifications = {87 = []}         # ID da classificação → categorias ([] = todas)
@@ -267,7 +267,7 @@ classifications = {87 = []}         # ID da classificação → categorias ([] =
 
 | Campo | Tipo | Descrição |
 |---|---|---|
-| `sidra_tabela` | string | ID numérico da tabela SIDRA |
+| `tabela_sidra` | string | ID numérico da tabela SIDRA |
 | `variables` | lista | IDs das variáveis, ou `["allxp"]` para todas disponíveis |
 | `territories` | mapa | Código do nível → lista de IDs (`[]` ou `["all"]` = todos) |
 | `classifications` | mapa | ID da classificação → lista de categorias (`[]` = todas, `["allxt"]` = todas incluindo total) |
@@ -289,7 +289,7 @@ Múltiplos níveis na mesma entrada:
 
 ```toml
 [[tabelas]]
-sidra_tabela = "7060"
+tabela_sidra = "7060"
 variables    = ["63", "66"]
 territories  = {1 = [], 3 = [], 6 = [], 71 = []}
 ```
@@ -298,7 +298,7 @@ IDs específicos de territórios (ex: apenas Sudeste e Sul):
 
 ```toml
 [[tabelas]]
-sidra_tabela = "5938"
+tabela_sidra = "5938"
 variables    = ["37", "498"]
 territories  = {2 = ["3", "4"]}    # Código 3 = Sudeste, 4 = Sul
 ```
@@ -332,7 +332,7 @@ classifications = {315 = ["7169", "7170", "7445"]}
 
 ```toml
 [[tabelas]]
-sidra_tabela    = "2960"
+tabela_sidra    = "2960"
 variables       = ["allxp"]
 territories     = {3 = []}
 classifications = {12762 = [], 2 = []}    # classificação A × classificação B
@@ -346,7 +346,7 @@ Quando a tabela tem classificações com muitas categorias, a API pode retornar 
 
 ```toml
 [[tabelas]]
-sidra_tabela           = "1613"
+tabela_sidra           = "1613"
 variables              = ["allxp"]
 territories            = {6 = []}
 unnest_classifications = true
@@ -358,7 +358,7 @@ Para desnestrar apenas classificações específicas, passe uma lista de IDs em 
 
 ```toml
 [[tabelas]]
-sidra_tabela           = "5938"
+tabela_sidra           = "5938"
 variables              = ["allxp"]
 territories            = {6 = []}
 classifications        = {81 = ["allxt"]}
@@ -373,7 +373,7 @@ Emite uma requisição separada para cada variável. Útil quando a combinação
 
 ```toml
 [[tabelas]]
-sidra_tabela    = "1002"
+tabela_sidra    = "1002"
 variables       = ["109", "216", "214", "112"]
 split_variables = true
 territories     = {6 = []}
@@ -386,7 +386,7 @@ As flags podem ser combinadas:
 
 ```toml
 [[tabelas]]
-sidra_tabela           = "5457"
+tabela_sidra           = "5457"
 variables              = ["allxp"]
 territories            = {6 = []}
 unnest_classifications = true
@@ -473,7 +473,7 @@ FROM dados d
 JOIN periodo    p   ON d.periodo_id    = p.id
 JOIN dimensao   dim ON d.dimensao_id   = dim.id
 JOIN localidade l   ON d.localidade_id = l.id
-WHERE d.sidra_tabela_id IN ('839', '1612')
+WHERE d.tabela_sidra_id IN ('839', '1612')
   AND d.ativo = true
 ```
 
@@ -488,7 +488,7 @@ As tabelas abaixo ficam no schema configurado em `config.ini` (padrão: `ibge_si
 | Coluna | Tipo | Descrição |
 |---|---|---|
 | `id` | bigint | PK auto-gerada |
-| `sidra_tabela_id` | text | FK → `sidra_tabela.id` |
+| `tabela_sidra_id` | text | FK → `tabela_sidra.id` |
 | `localidade_id` | bigint | FK → `localidade.id` |
 | `dimensao_id` | bigint | FK → `dimensao.id` |
 | `periodo_id` | int | FK → `periodo.id` |
@@ -536,7 +536,7 @@ As tabelas abaixo ficam no schema configurado em `config.ini` (padrão: `ibge_si
 | `d8c` / `d8n` | text | Código/nome da 5ª classificação |
 | `d9c` / `d9n` | text | Código/nome da 6ª classificação |
 
-#### `sidra_tabela` — metadados das tabelas
+#### `tabela_sidra` — metadados das tabelas
 
 | Coluna | Tipo | Descrição |
 |---|---|---|
@@ -630,7 +630,7 @@ FROM ibge_sidra.dados d
 JOIN ibge_sidra.periodo    p   ON d.periodo_id    = p.id
 JOIN ibge_sidra.dimensao   dim ON d.dimensao_id   = dim.id
 JOIN ibge_sidra.localidade l   ON d.localidade_id = l.id
-WHERE d.sidra_tabela_id = '7060'
+WHERE d.tabela_sidra_id = '7060'
   AND l.d1c = '5300108'    -- código IBGE de Brasília
   AND d.ativo = true
 ORDER BY p.ano, p.mes;
@@ -709,7 +709,7 @@ path        = "pib"
 **`pib/fetch.toml`:**
 ```toml
 [[tabelas]]
-sidra_tabela    = "5938"
+tabela_sidra    = "5938"
 variables       = ["37", "498", "513", "517"]
 territories     = {6 = []}
 classifications = {315 = []}
@@ -746,7 +746,7 @@ FROM dados d
 JOIN periodo    p   ON d.periodo_id    = p.id
 JOIN dimensao   dim ON d.dimensao_id   = dim.id
 JOIN localidade l   ON d.localidade_id = l.id
-WHERE d.sidra_tabela_id = '5938'
+WHERE d.tabela_sidra_id = '5938'
   AND d.ativo = true
 ORDER BY p.ano, l.d1c;
 ```
@@ -761,21 +761,21 @@ ORDER BY p.ano, l.d1c;
 ```toml
 # Tabela 58 — IPCA variação mensal (jan/1991 – jul/1999)
 [[tabelas]]
-sidra_tabela    = "58"
+tabela_sidra    = "58"
 variables       = ["63"]
 territories     = {1 = [], 6 = [], 7 = []}
 classifications = {72 = []}
 
 # Tabela 655 — IPCA variação mensal (ago/1999 – jun/2006)
 [[tabelas]]
-sidra_tabela    = "655"
+tabela_sidra    = "655"
 variables       = ["63"]
 territories     = {1 = [], 6 = [], 7 = []}
 classifications = {315 = []}
 
 # Tabela 7060 — IPCA variação e peso mensal (jan/2020 em diante)
 [[tabelas]]
-sidra_tabela    = "7060"
+tabela_sidra    = "7060"
 variables       = ["63", "66"]
 territories     = {1 = [], 6 = [], 7 = [], 71 = []}
 classifications = {315 = []}
@@ -808,7 +808,7 @@ FROM dados d
 JOIN periodo    p   ON d.periodo_id    = p.id
 JOIN dimensao   dim ON d.dimensao_id   = dim.id
 JOIN localidade l   ON d.localidade_id = l.id
-WHERE d.sidra_tabela_id IN ('58', '61', '655', '656', '2938', '1419', '7060')
+WHERE d.tabela_sidra_id IN ('58', '61', '655', '656', '2938', '1419', '7060')
   AND d.ativo = true
 ORDER BY p.ano, p.mes, l.d1c, dim.d2n, dim.d4n;
 ```
@@ -822,7 +822,7 @@ ORDER BY p.ano, p.mes, l.d1c, dim.d2n, dim.d4n;
 **`permanentes/fetch.toml`:**
 ```toml
 [[tabelas]]
-sidra_tabela           = "1613"
+tabela_sidra           = "1613"
 variables              = ["allxp"]
 territories            = {6 = []}
 unnest_classifications = true
@@ -851,7 +851,7 @@ FROM dados d
 JOIN periodo    p   ON d.periodo_id    = p.id
 JOIN dimensao   dim ON d.dimensao_id   = dim.id
 JOIN localidade l   ON d.localidade_id = l.id
-WHERE d.sidra_tabela_id = '1613'
+WHERE d.tabela_sidra_id = '1613'
   AND d.ativo = true;
 ```
 
@@ -871,7 +871,7 @@ WHERE d.sidra_tabela_id = '1613'
 - **Sempre filtre por `d.ativo = true`:** garante que apenas o dado mais recente para cada período seja retornado.
 - **Use o guard numérico:** `CASE WHEN d.v ~ '^-?[0-9]' THEN d.v::numeric END` converte flags do SIDRA (`"..."`, `"-"`, `"X"`, `"C"`) em `NULL`.
 - **Não use prefixo de schema:** o `search_path` é configurado automaticamente pelo motor. Escreva `dados`, não `ibge_sidra.dados`.
-- **Filtre por `sidra_tabela_id`:** sem esse filtro, a query retorna dados de *todas* as tabelas no banco.
+- **Filtre por `tabela_sidra_id`:** sem esse filtro, a query retorna dados de *todas* as tabelas no banco.
 - **Aproveite a tabela `periodo`:** os campos `ano`, `mes`, `trimestre` já estão parseados — use-os ao invés de manipular strings do `codigo`.
 
 ### transform.toml

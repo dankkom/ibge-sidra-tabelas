@@ -16,14 +16,21 @@ from rich.text import Text
 
 import configparser
 
-from sidra_sql.config import Config, ConfigError, GLOBAL_CONFIG_PATH, LOCAL_CONFIG_PATH
+from sidra_sql.config import (
+    Config,
+    ConfigError,
+    GLOBAL_CONFIG_PATH,
+    LOCAL_CONFIG_PATH,
+)
 from sidra_sql.plugin_manager import PluginManager
 from sidra_sql.runner import run_subtree
 from sidra_sql.scaffold import PipelineAdder, PluginScaffolder
 from sidra_sql.validator import PluginValidator, Severity
 from sidra_sql.transform_runner import TransformRunner
 
-app = typer.Typer(help=f"Sidra-SQL CLI v{__version__} - Manage and run data pipelines")
+app = typer.Typer(
+    help=f"Sidra-SQL CLI v{__version__} - Manage and run data pipelines"
+)
 plugin_app = typer.Typer(help="Manage pipeline plugins")
 config_app = typer.Typer(help="Manage sidra-sql configuration")
 app.add_typer(plugin_app, name="plugin")
@@ -65,13 +72,21 @@ def _write_config(cfg: configparser.ConfigParser, path: Path) -> None:
 
 @config_app.command("set")
 def config_set(
-    key: str = typer.Argument(..., help="Config key in section.option format (e.g. database.host)"),
+    key: str = typer.Argument(
+        ..., help="Config key in section.option format (e.g. database.host)"
+    ),
     value: str = typer.Argument(..., help="Value to set"),
-    use_global: bool = typer.Option(False, "--global", help="Write to global config (~/.config/sidra-sql/config.ini)"),
+    use_global: bool = typer.Option(
+        False,
+        "--global",
+        help="Write to global config (~/.config/sidra-sql/config.ini)",
+    ),
 ):
     """Set a configuration value."""
     if "." not in key:
-        console.print("[bold red]Error:[/bold red] key must be in 'section.option' format (e.g. database.host)")
+        console.print(
+            "[bold red]Error:[/bold red] key must be in 'section.option' format (e.g. database.host)"
+        )
         raise typer.Exit(1)
 
     section, option = key.split(".", 1)
@@ -89,11 +104,15 @@ def config_set(
 
 @config_app.command("get")
 def config_get(
-    key: str = typer.Argument(..., help="Config key in section.option format (e.g. database.host)"),
+    key: str = typer.Argument(
+        ..., help="Config key in section.option format (e.g. database.host)"
+    ),
 ):
     """Get a configuration value (local overrides global)."""
     if "." not in key:
-        console.print("[bold red]Error:[/bold red] key must be in 'section.option' format (e.g. database.host)")
+        console.print(
+            "[bold red]Error:[/bold red] key must be in 'section.option' format (e.g. database.host)"
+        )
         raise typer.Exit(1)
 
     section, option = key.split(".", 1)
@@ -109,8 +128,12 @@ def config_get(
 
 @config_app.command("list")
 def config_list(
-    use_global: bool = typer.Option(False, "--global", help="Show only global config"),
-    local: bool = typer.Option(False, "--local", help="Show only local config"),
+    use_global: bool = typer.Option(
+        False, "--global", help="Show only global config"
+    ),
+    local: bool = typer.Option(
+        False, "--local", help="Show only local config"
+    ),
 ):
     """List configuration values. Without flags, shows merged view (local overrides global)."""
     if use_global:
@@ -152,7 +175,11 @@ def _version_callback(value: bool):
 @app.callback()
 def bootstrap(
     version: Optional[bool] = typer.Option(
-        None, "--version", "-V", callback=_version_callback, is_eager=True,
+        None,
+        "--version",
+        "-V",
+        callback=_version_callback,
+        is_eager=True,
         help="Exibe a versão e encerra.",
     ),
 ):
@@ -201,7 +228,9 @@ def remove_plugin(
 
 @plugin_app.command("scaffold")
 def scaffold_plugin(
-    name: str = typer.Argument(..., help="Nome do plugin (vira o diretório raiz)"),
+    name: str = typer.Argument(
+        ..., help="Nome do plugin (vira o diretório raiz)"
+    ),
     description: str = typer.Option(
         "", "--description", "-d", help="Descrição do plugin"
     ),
@@ -215,7 +244,9 @@ def scaffold_plugin(
 ):
     """Cria a estrutura de arquivos para um novo plugin com templates prontos."""
     try:
-        scaffolder = PluginScaffolder(name, description, version, output_dir, git_init)
+        scaffolder = PluginScaffolder(
+            name, description, version, output_dir, git_init
+        )
         plugin_dir = scaffolder.create()
         slug = scaffolder.slug
 
@@ -232,7 +263,9 @@ def scaffold_plugin(
             console.print("  .gitignore")
 
         console.print("\n[bold]Próximos passos:[/bold]")
-        console.print("  1. Edite [cyan]manifest.toml[/cyan] e ajuste a descrição do pipeline")
+        console.print(
+            "  1. Edite [cyan]manifest.toml[/cyan] e ajuste a descrição do pipeline"
+        )
         console.print(
             f"  2. Em [cyan]{slug}/fetch.toml[/cyan], substitua XXXX pelo ID da tabela SIDRA"
         )
@@ -253,15 +286,22 @@ def scaffold_plugin(
 
 @plugin_app.command("add-pipeline")
 def add_pipeline(
-    pipeline_id: str = typer.Argument(..., help="ID do pipeline (usado em 'sidra-sql run')"),
+    pipeline_id: str = typer.Argument(
+        ..., help="ID do pipeline (usado em 'sidra-sql run')"
+    ),
     description: str = typer.Option(
         "", "--description", "-d", help="Descrição do pipeline"
     ),
     path: str = typer.Option(
-        "", "--path", "-p", help="Caminho do diretório relativo ao plugin (default: pipeline-id)"
+        "",
+        "--path",
+        "-p",
+        help="Caminho do diretório relativo ao plugin (default: pipeline-id)",
     ),
     plugin_dir: Path = typer.Option(
-        Path("."), "--plugin-dir", help="Diretório raiz do plugin (default: diretório atual)"
+        Path("."),
+        "--plugin-dir",
+        help="Diretório raiz do plugin (default: diretório atual)",
     ),
 ):
     """Adiciona um novo pipeline a um plugin existente."""
@@ -302,7 +342,9 @@ def validate_plugin(
         None, help="Alias do plugin instalado (omitir para usar --plugin-dir)"
     ),
     plugin_dir: Path = typer.Option(
-        Path("."), "--plugin-dir", help="Diretório raiz do plugin (default: diretório atual)"
+        Path("."),
+        "--plugin-dir",
+        help="Diretório raiz do plugin (default: diretório atual)",
     ),
 ):
     """Valida a estrutura e os arquivos de um plugin."""
@@ -439,13 +481,19 @@ def run_pipeline_path(
     try:
         resolved = path.resolve()
         if not resolved.is_dir():
-            console.print(f"[bold red]Directory not found:[/bold red] {resolved}")
+            console.print(
+                f"[bold red]Directory not found:[/bold red] {resolved}"
+            )
             raise typer.Exit(1)
 
         config = Config()
         _print_header()
-        run_subtree(config, resolved, force_metadata=force_metadata, console=console)
-        console.print("[bold green]Pipeline completed successfully![/bold green]")
+        run_subtree(
+            config, resolved, force_metadata=force_metadata, console=console
+        )
+        console.print(
+            "[bold green]Pipeline completed successfully![/bold green]"
+        )
     except ConfigError as e:
         console.print(f"[bold yellow]{e}[/bold yellow]")
         raise typer.Exit(1)
@@ -478,7 +526,9 @@ def transform_pipeline(
             f"[bold blue]Transforming {pipeline_id} from {alias}[/bold blue]"
         )
         TransformRunner(config, transform_path).run()
-        console.print("[bold green]Transform completed successfully![/bold green]")
+        console.print(
+            "[bold green]Transform completed successfully![/bold green]"
+        )
 
     except typer.Exit:
         raise
@@ -494,6 +544,7 @@ def transform_pipeline(
 
 def main():
     import sys
+
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     logging.basicConfig(level=logging.WARNING)

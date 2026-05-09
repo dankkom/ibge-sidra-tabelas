@@ -81,14 +81,16 @@ def get_engine(config: Config) -> sa.engine.Engine:
 
 def save_agregado(engine: sa.engine.Engine, agregado: Agregado):
     """Save SIDRA table metadata, periods, and localidades to the database (idempotent)."""
-    sidra_tabela = dict(
+
+    tabela_sidra = dict(
         id=str(agregado.id),
         nome=agregado.nome,
         periodicidade=agregado.periodicidade.frequencia,
         metadados=json.loads(json.dumps(agregado.asdict(), default=str)),
     )
     with engine.connect() as conn:
-        stmt = pg_insert(models.SidraTabela.__table__).values(sidra_tabela)
+        stmt = pg_insert(models.TabelaSidra.__table__).values(tabela_sidra)
+
         stmt = stmt.on_conflict_do_update(
             index_elements=["id"],
             set_={"metadados": stmt.excluded.metadados},
@@ -306,7 +308,7 @@ def build_periodo_lookup(
 
 _STAGING_DDL = (
     "CREATE TEMP TABLE _staging_dados ("
-    "  sidra_tabela_id text,"
+    "  tabela_sidra_id text,"
     "  localidade_id bigint,"
     "  dimensao_id bigint,"
     "  periodo_id integer,"
@@ -318,8 +320,8 @@ _STAGING_DDL = (
 
 _STAGING_INSERT = (
     "INSERT INTO dados"
-    " (sidra_tabela_id, localidade_id, dimensao_id, periodo_id, modificacao, ativo, v)"
-    " SELECT sidra_tabela_id, localidade_id, dimensao_id,"
+    " (tabela_sidra_id, localidade_id, dimensao_id, periodo_id, modificacao, ativo, v)"
+    " SELECT tabela_sidra_id, localidade_id, dimensao_id,"
     "  periodo_id, modificacao, ativo, v"
     " FROM _staging_dados"
     " ON CONFLICT DO NOTHING"
@@ -329,11 +331,11 @@ _STAGING_DEACTIVATE = (
     "UPDATE dados d"
     " SET ativo = FALSE"
     " FROM ("
-    "  SELECT sidra_tabela_id, periodo_id, MAX(modificacao) AS max_mod"
+    "  SELECT tabela_sidra_id, periodo_id, MAX(modificacao) AS max_mod"
     "  FROM _staging_dados"
-    "  GROUP BY sidra_tabela_id, periodo_id"
+    "  GROUP BY tabela_sidra_id, periodo_id"
     " ) latest"
-    " WHERE d.sidra_tabela_id = latest.sidra_tabela_id"
+    " WHERE d.tabela_sidra_id = latest.tabela_sidra_id"
     "  AND d.periodo_id = latest.periodo_id"
     "  AND d.modificacao < latest.max_mod"
     "  AND d.ativo = TRUE"
@@ -341,7 +343,7 @@ _STAGING_DEACTIVATE = (
 
 _STAGING_COPY = (
     "COPY _staging_dados"
-    " (sidra_tabela_id, localidade_id, dimensao_id,"
+    " (tabela_sidra_id, localidade_id, dimensao_id,"
     "  periodo_id, modificacao, ativo, v)"
     " FROM STDIN"
 )
@@ -490,7 +492,7 @@ def _stream_staging(
     raw_conn,
     storage: Storage,
     table_files: list[dict],
-    sidra_tabela_id: str,
+    tabela_sidra_id: str,
     loc_lookup: dict[tuple, int],
     dim_lookup: dict[tuple, int],
     periodo_by_codigo: dict[str, int],
@@ -528,7 +530,7 @@ def _stream_staging(
 
                     copy.write_row(
                         (
-                            sidra_tabela_id,
+                            tabela_sidra_id,
                             loc_id,
                             dim_id,
                             periodo_id,
@@ -580,13 +582,15 @@ def load_dados(
     """
     files_by_table: dict[str, list[dict]] = {}
     for data_file in data_files:
-        sidra_tabela_id = str(data_file["sidra_tabela"])
-        files_by_table.setdefault(sidra_tabela_id, []).append(data_file)
+        tabela_sidra_id = str(data_file["tabela_sidra"])
 
-    for sidra_tabela_id, table_files in files_by_table.items():
+        files_by_table.setdefault(tabela_sidra_id, []).append(data_file)
+
+    for tabela_sidra_id, table_files in files_by_table.items():
         _file_done: Callable[[], None] | None = None
         if on_file_done is not None:
-            sid = sidra_tabela_id
+            sid = tabela_sidra_id
+
             def _file_done(s=sid) -> None:
                 on_file_done(s)
 
@@ -600,15 +604,16 @@ def load_dados(
         ) = _collect_upsert_data(storage, table_files, on_file_done=_file_done)
 
         if not has_data:
-            logger.info("No data rows found for table %s", sidra_tabela_id)
+            logger.info("No data rows found for table %s", tabela_sidra_id)
+
             if on_table_done is not None:
-                on_table_done(sidra_tabela_id)
+                on_table_done(tabela_sidra_id)
             continue
 
         logger.info(
             "Collected %d unique periodo codigos from data for table %s",
             len(seen_periodos),
-            sidra_tabela_id,
+            tabela_sidra_id,
         )
 
         with engine.connect() as conn:
@@ -617,14 +622,14 @@ def load_dados(
                 "Upserted %d localidades and %d dimensions for table %s",
                 len(loc_dicts),
                 len(dim_dicts),
-                sidra_tabela_id,
+                tabela_sidra_id,
             )
 
             loc_lookup = _localidade_lookup_query(conn, keys=seen_locs)
             dim_lookup = _dimensao_lookup_query(conn, keys=seen_dim_lookup)
             periodicidade = conn.execute(
-                sa.select(models.SidraTabela.periodicidade).where(
-                    models.SidraTabela.id == sidra_tabela_id
+                sa.select(models.TabelaSidra.periodicidade).where(
+                    models.TabelaSidra.id == tabela_sidra_id
                 )
             ).scalar_one_or_none()
             periodo_by_codigo = _periodo_by_codigo_query(
@@ -650,7 +655,7 @@ def load_dados(
                 raw_conn,
                 storage,
                 table_files,
-                sidra_tabela_id,
+                tabela_sidra_id,
                 loc_lookup,
                 dim_lookup,
                 periodo_by_codigo,
@@ -659,30 +664,30 @@ def load_dados(
             conn.commit()
 
         if on_table_done is not None:
-            on_table_done(sidra_tabela_id)
+            on_table_done(tabela_sidra_id)
 
         if missing_dims > 0:
             logger.warning(
                 "Skipping %d rows with unknown dimensao for table %s",
                 missing_dims,
-                sidra_tabela_id,
+                tabela_sidra_id,
             )
         if missing_locs > 0:
             logger.warning(
                 "Skipping %d rows with unknown localidade for table %s",
                 missing_locs,
-                sidra_tabela_id,
+                tabela_sidra_id,
             )
         if missing_periodos > 0:
             logger.warning(
                 "Skipping %d rows with unknown periodo for table %s",
                 missing_periodos,
-                sidra_tabela_id,
+                tabela_sidra_id,
             )
         logger.info(
             "Loaded %d/%d rows into dados for table %s (%d deactivated)",
             n_inserted,
             n_rows,
-            sidra_tabela_id,
+            tabela_sidra_id,
             n_deactivated,
         )

@@ -15,14 +15,14 @@ def _fetch_toml_template() -> str:
         "# Busca dados da API SIDRA (IBGE).\n"
         "# Encontre IDs de tabelas em https://sidra.ibge.gov.br\n"
         "#\n"
-        '# sidra_tabela    — ID da tabela no SIDRA (ex: "839")\n'
+        '# tabela_sidra    — ID da tabela no SIDRA (ex: "839")\n'
         '# variables       — ["allxp"] para todas, ou IDs específicos: ["109", "216"]\n'
         "# territories     — {6 = []} todos os municípios; {3 = []} todos os estados\n"
         '# classifications — {81 = ["allxt"]} todas as categorias (descomente se precisar)\n'
         "# split_variables — true para enviar uma requisição por variável\n"
         "\n"
         "[[tabelas]]\n"
-        'sidra_tabela = "XXXX"        # substitua pelo ID da tabela\n'
+        'tabela_sidra = "XXXX"        # substitua pelo ID da tabela\n'
         'variables    = ["allxp"]\n'
         "territories  = {6 = []}      # nível 6 = municípios\n"
         '# classifications = {81 = ["allxt"]}\n'
@@ -66,7 +66,7 @@ def _transform_sql_template() -> str:
         "    JOIN DIMENSAO   DIM ON D.DIMENSAO_ID   = DIM.ID\n"
         "    JOIN LOCALIDADE L   ON D.LOCALIDADE_ID = L.ID\n"
         "WHERE\n"
-        "    D.SIDRA_TABELA_ID IN ('XXXX')  -- substitua pelo(s) ID(s) da(s) tabela(s)\n"
+        "    D.tabela_sidra_ID IN ('XXXX')  -- substitua pelo(s) ID(s) da(s) tabela(s)\n"
         "    AND D.ATIVO = TRUE;\n"
     )
 
@@ -100,8 +100,13 @@ class PluginScaffolder:
         self._write(self.plugin_dir / "manifest.toml", self._manifest())
         self._write(self.plugin_dir / "README.md", self._readme())
         self._write(pipeline_dir / "fetch.toml", _fetch_toml_template())
-        self._write(pipeline_dir / "transform.toml", _transform_toml_template(self.slug))
-        self._write(pipeline_dir / f"{self.slug}.sql", _transform_sql_template())
+        self._write(
+            pipeline_dir / "transform.toml",
+            _transform_toml_template(self.slug),
+        )
+        self._write(
+            pipeline_dir / f"{self.slug}.sql", _transform_sql_template()
+        )
 
         if self.git_init:
             self._write(self.plugin_dir / ".gitignore", self._gitignore())
@@ -162,18 +167,17 @@ class PluginScaffolder:
         )
 
     def _gitignore(self) -> str:
-        return (
-            "__pycache__/\n"
-            "*.py[cod]\n"
-            ".env\n"
-            ".DS_Store\n"
-        )
+        return "__pycache__/\n" "*.py[cod]\n" ".env\n" ".DS_Store\n"
 
     def _run_git_init(self) -> None:
         cwd = str(self.plugin_dir)
         try:
-            subprocess.run(["git", "init"], cwd=cwd, check=True, capture_output=True)
-            subprocess.run(["git", "add", "."], cwd=cwd, check=True, capture_output=True)
+            subprocess.run(
+                ["git", "init"], cwd=cwd, check=True, capture_output=True
+            )
+            subprocess.run(
+                ["git", "add", "."], cwd=cwd, check=True, capture_output=True
+            )
             subprocess.run(
                 ["git", "commit", "-m", "chore: initial scaffold"],
                 cwd=cwd,

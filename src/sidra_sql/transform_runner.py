@@ -41,7 +41,7 @@ Each entry runs in its own transaction; if one fails, previously
 materialized outputs from the same pipeline persist.
 
 The SQL queries use unqualified table names (``dados``, ``dimensao``,
-``localidade``, ``sidra_tabela``).  They resolve via the database
+``localidade``, ``tabela_sidra``).  They resolve via the database
 ``search_path`` set by ``get_engine`` from ``config.ini``.
 """
 
@@ -50,7 +50,12 @@ import tomllib
 from pathlib import Path
 
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
+from rich.progress import (
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
 
 from . import database
 from .config import Config
@@ -61,7 +66,9 @@ logger = logging.getLogger(__name__)
 class TransformRunner:
     """Run SQL transformations declared in a ``transform.toml`` file."""
 
-    def __init__(self, config: Config, toml_path: Path, console: Console | None = None):
+    def __init__(
+        self, config: Config, toml_path: Path, console: Console | None = None
+    ):
         self.config = config
         self.toml_path = toml_path
         self.console = console
@@ -92,7 +99,9 @@ class TransformRunner:
                 self._materialize(engine, entry, progress)
 
     def _materialize(self, engine, entry: dict, progress: Progress) -> None:
-        missing = [f for f in ("name", "schema", "strategy", "sql") if f not in entry]
+        missing = [
+            f for f in ("name", "schema", "strategy", "sql") if f not in entry
+        ]
         if missing:
             raise ValueError(
                 f"{self.toml_path}: [[table]] sem campo(s) obrigatório(s): "
@@ -115,7 +124,9 @@ class TransformRunner:
         query = sql_path.read_text(encoding="utf-8").strip()
 
         qualified = f'"{schema}"."{name}"'
-        strategy_label = {"replace": "tabela", "view": "view"}.get(strategy, strategy)
+        strategy_label = {"replace": "tabela", "view": "view"}.get(
+            strategy, strategy
+        )
         task = progress.add_task(
             f"{qualified} [dim][{strategy_label}][/dim]", total=None
         )

@@ -118,9 +118,9 @@ O banco é organizado em cinco tabelas no schema `ibge_sidra` (configurável):
 
 ```
 ┌─────────────────┐       ┌──────────────────────────────────────────┐
-│  sidra_tabela   │       │              dados (fatos)               │
+│  tabela_sidra   │       │              dados (fatos)               │
 │─────────────────│       │──────────────────────────────────────────│
-│ id (PK)         │◄──────│ sidra_tabela_id (FK)                     │
+│ id (PK)         │◄──────│ tabela_sidra_id (FK)                     │
 │ nome            │       │ localidade_id (FK) ──────────────────────┼──►┌─────────────────┐
 │ periodicidade   │       │ dimensao_id (FK) ────────────────────────┼──►│   localidade    │
 │ metadados (JSON)│       │ periodo_id (FK) ─────────────────────────┼──►│─────────────────│
@@ -145,7 +145,7 @@ O banco é organizado em cinco tabelas no schema `ibge_sidra` (configurável):
 
 **Constraint de unicidade na tabela `dados`:**
 ```sql
-UNIQUE (sidra_tabela_id, localidade_id, dimensao_id, periodo_id)
+UNIQUE (tabela_sidra_id, localidade_id, dimensao_id, periodo_id)
 ```
 
 Isso garante que cada combinação de tabela × localidade × variável/classificação × período exista apenas uma vez, tornando re-execuções completamente seguras.
@@ -319,7 +319,7 @@ Cada arquivo TOML contém uma lista de entradas `[[tabelas]]`. Cada entrada corr
 
 ```toml
 [[tabelas]]
-sidra_tabela = "5938"           # ID da tabela no SIDRA
+tabela_sidra = "5938"           # ID da tabela no SIDRA
 variables    = ["37", "498"]    # IDs das variáveis ("allxp" para todas)
 territories  = {6 = ["all"]}   # nível territorial → lista de IDs
 
@@ -346,7 +346,7 @@ Busca os metadados da tabela em tempo de execução e gera uma requisição para
 
 ```toml
 [[tabelas]]
-sidra_tabela = "1613"
+tabela_sidra = "1613"
 variables    = ["allxp"]
 territories  = {6 = []}
 unnest_classifications = true
@@ -358,7 +358,7 @@ Emite uma requisição separada para cada variável listada em `variables`:
 
 ```toml
 [[tabelas]]
-sidra_tabela   = "1002"
+tabela_sidra   = "1002"
 variables      = ["109", "216", "214", "112"]
 split_variables = true
 territories    = {6 = []}
@@ -435,7 +435,7 @@ FROM dados d
 JOIN periodo    p   ON d.periodo_id    = p.id
 JOIN dimensao   dim ON d.dimensao_id   = dim.id
 JOIN localidade l   ON d.localidade_id = l.id
-WHERE d.sidra_tabela_id IN ('7060', '1419')
+WHERE d.tabela_sidra_id IN ('7060', '1419')
   AND d.ativo = true
 ```
 
@@ -511,7 +511,7 @@ API SIDRA (IBGE)
                ┌──────────────────┐
                │   PostgreSQL     │
                │                  │
-               │  sidra_tabela    │
+               │  tabela_sidra    │
                │  localidade      │
                │  dimensao        │
                │  dados           │
@@ -572,7 +572,7 @@ from sidra_sql.sidra import Fetcher
 
 with Fetcher(config=config) as fetcher:
     filepaths = fetcher.download_table(
-        sidra_tabela="5938",
+        tabela_sidra="5938",
         territories={"6": ["all"]},
         variables=["37", "498"],
     )
