@@ -1,4 +1,6 @@
-# sidra-sql
+# sidra-sql: Pipeline ETL para dados do IBGE/SIDRA em PostgreSQL
+
+![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square) ![Python](https://img.shields.io/badge/python-3.13+-blue.svg?style=flat-square)
 
 **Pipeline ETL robusto para baixar, normalizar e carregar tabelas agregadas do SIDRA/IBGE em PostgreSQL.**
 
@@ -18,28 +20,6 @@ Este projeto resolve exatamente esse problema: um pipeline ETL completo, com con
 - **Declarativo:** cada pesquisa é descrita em um arquivo TOML — sem código Python para adicionar novas séries.
 - **Transformações:** camada de transformação (TOML + SQL) gera tabelas planas e desnormalizadas, prontas para Power BI, Excel ou qualquer ferramenta analítica.
 - **Banco normalizado:** dados separados em cinco tabelas relacionais com constraints de unicidade e índices otimizados para consultas analíticas.
-
----
-
-## Índice
-
-- [Funcionalidades](#funcionalidades)
-- [Arquitetura](#arquitetura)
-- [Esquema do Banco de Dados](#esquema-do-banco-de-dados)
-- [Pipelines Padrão (Plugin Oficial)](#pipelines-padrão-plugin-oficial)
-- [Pré-requisitos](#pré-requisitos)
-- [Instalação](#instalação)
-- [Configuração](#configuração)
-- [Uso](#uso)
-  - [Gerenciar Plugins](#1-gerenciar-plugins)
-  - [Criar e Desenvolver Plugins](#2-criar-e-desenvolver-plugins)
-  - [Executar Pipelines](#3-executar-pipelines)
-- [Formato TOML](#formato-toml)
-- [Transformações](#transformações)
-- [Fluxo de Dados](#fluxo-de-dados)
-- [Módulos Internos](#módulos-internos)
-- [Testes](#testes)
-- [Criando seus próprios pipelines](#criando-seus-próprios-pipelines)
 
 ---
 
@@ -189,17 +169,13 @@ Para criar suas próprias pipelines e distribuí-las como plugin, consulte o **[
 ## Instalação
 
 ```bash
-# 1. Clone o repositório
-git clone https://github.com/Quantilica/sidra-sql.git
-cd sidra-sql
+pip install git+https://github.com/Quantilica/sidra-sql.git
+```
 
-# 2. Crie e ative o ambiente virtual
-python -m venv .venv
-source .venv/bin/activate       # Linux/macOS
-# .venv\Scripts\activate        # Windows
+Com [uv](https://github.com/astral-sh/uv):
 
-# 3. Instale as dependências
-pip install -e .
+```bash
+uv add "git+https://github.com/Quantilica/sidra-sql.git"
 ```
 
 **Dependências principais:**
@@ -520,112 +496,13 @@ API SIDRA (IBGE)
 
 ---
 
-## Módulos Internos
-
-### `toml_runner.py` — Pipeline principal
-
-`TomlScript` lê o TOML, expande entradas dinâmicas e orquestra todo o pipeline:
-
-```python
-from sidra_sql.toml_runner import TomlScript
-from sidra_sql.config import Config
-from pathlib import Path
-
-script = TomlScript(Config(), Path("pipelines/pib_munic/pib/fetch.toml"))
-script.run()
-```
-
-O método `run()` executa automaticamente toda a sequência:
-1. Cria as tabelas no banco (idempotente)
-2. Busca e persiste os metadados
-3. Baixa todos os períodos disponíveis (com cache)
-4. Carrega os dados no PostgreSQL
-
-### `transform_runner.py` — Transformações SQL
-
-`TransformRunner` lê um par TOML + SQL e materializa a query como tabela ou view:
-
-```python
-from sidra_sql.transform_runner import TransformRunner
-from sidra_sql.config import Config
-from pathlib import Path
-
-runner = TransformRunner(Config(), Path("pipelines/snpc/ipca/transform.toml"))
-runner.run()
-```
-
-### `config.py` — Gerenciamento de configuração
-
-Lê `config.ini` e expõe credenciais do banco, diretório de dados e opções de logging.
-
-```python
-from sidra_sql.config import Config
-config = Config("config.ini")
-print(config.database.host)    # "localhost"
-print(config.storage.data_dir) # "data"
-```
-
-### `sidra.py` — Cliente da API SIDRA
-
-```python
-from sidra_sql.sidra import Fetcher
-
-with Fetcher(config=config) as fetcher:
-    filepaths = fetcher.download_table(
-        tabela_sidra="5938",
-        territories={"6": ["all"]},
-        variables=["37", "498"],
-    )
-```
-
-O `Fetcher` gerencia internamente:
-- Pool de threads para downloads paralelos
-- Detecção de cache-hit (evita re-download)
-- Retry com backoff exponencial em falhas de rede
-
-### `storage.py` — Armazenamento em arquivo
-
-Nomes de arquivo são gerados deterministicamente a partir dos parâmetros da requisição:
-
-```
-t5938_p202301_f3_n6-all_v37.498_c0_m1717200000.json
-│     │        │  │       │      │  │
-│     │        │  │       │      │  └─ timestamp de modificação
-│     │        │  │       │      └──── classificações
-│     │        │  │       └─────────── variáveis
-│     │        │  └─────────────────── nível territorial
-│     │        └────────────────────── formato
-│     └─────────────────────────────── período
-└───────────────────────────────────── tabela
-```
-
-### `database.py` — Operações no banco
-
-```python
-from sidra_sql.database import get_engine, load_dados
-
-engine = get_engine(config)
-load_dados(engine, storage, data_files)
-```
-
-A carga usa o protocolo COPY do PostgreSQL via `psycopg3`, com inserção em tabela de staging e resolução de conflitos via `ON CONFLICT DO NOTHING`.
-
-### `utils.py` — Utilitários de transformação
-
-```python
-from sidra_sql.utils import unnest_dimensoes
-
-dimensoes = list(unnest_dimensoes(variaveis, classificacoes))
-```
-
-Gera todas as combinações possíveis de variável × categoria de classificação.
-
----
-
-## Testes
+## Desenvolvimento
 
 ```bash
-pytest -q
+git clone https://github.com/Quantilica/sidra-sql.git
+cd sidra-sql
+uv sync --dev
+uv run pytest
 ```
 
 A suíte de testes cobre:
@@ -668,44 +545,6 @@ sidra-sql/
 
 ---
 
-## Criando seus próprios pipelines
-
-O `sidra-sql` foi projetado para ser extensível. Qualquer série do IBGE disponível na API SIDRA pode ser transformada em um pipeline sem escrever nenhum código Python — apenas arquivos TOML e SQL.
-
-O CLI inclui comandos para acelerar o processo de criação:
-
-```bash
-# 1. Criar o esqueleto do plugin
-sidra-sql plugin scaffold meu-plugin --description "Descrição do plugin"
-
-# 2. Editar os templates gerados com os dados reais do SIDRA
-
-# 3. Adicionar mais pipelines conforme necessário
-cd meu-plugin
-sidra-sql plugin add-pipeline outra_serie --description "Outra pesquisa"
-
-# 4. Validar antes de publicar
-sidra-sql plugin validate
-
-# 5. Publicar no Git e instalar
-sidra-sql plugin install <git-url> --alias meu-alias
-```
-
-Para o fluxo completo com exemplos e referências de todos os campos:
-
-👉 **[Guia completo: Criando e Usando Pipelines](CREATING_PIPELINES.md)**
-
-O guia cobre:
-- Como criar um plugin do zero com o CLI (`scaffold`, `add-pipeline`, `validate`)
-- Como encontrar IDs de tabelas, variáveis e classificações no portal SIDRA
-- Estrutura completa de um repositório de plugin
-- Referência de todos os campos de `manifest.toml`, `fetch.toml` e `transform.toml`
-- Referência do esquema normalizado (colunas de cada tabela)
-- Exemplos completos do zero
-- Boas práticas para séries históricas, classificações complexas e transformações SQL
-
----
-
 ## Licença
 
-Este projeto está licenciado sob a licença MIT — veja o arquivo [LICENSE](LICENSE) para detalhes.
+MIT — veja [LICENSE](LICENSE).

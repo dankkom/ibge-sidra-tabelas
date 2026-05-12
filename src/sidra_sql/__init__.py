@@ -2,11 +2,14 @@
 # Licensed under the MIT License.
 
 import logging
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 
 from . import config, database, sidra, storage
 
-__version__ = version("sidra-sql")
+try:
+    __version__ = version("sidra-sql")
+except PackageNotFoundError:
+    __version__ = "0.0.0"
 
 __all__ = ["config", "database", "sidra", "storage"]
 
