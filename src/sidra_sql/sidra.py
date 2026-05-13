@@ -1,6 +1,3 @@
-# Copyright (c) 2026 Komesu, D.K.
-# Licensed under the MIT License.
-
 """Utilities to fetch and store SIDRA tables.
 
 This module provides a `Fetcher` context-managed helper that wraps the

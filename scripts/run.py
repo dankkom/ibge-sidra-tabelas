@@ -1,6 +1,3 @@
-# Copyright (c) 2026 Komesu, D.K.
-# Licensed under the MIT License.
-
 """CLI entry point for running a dataset pipeline.
 
 Reads a pipeline directory containing fetch.toml and/or transform.toml

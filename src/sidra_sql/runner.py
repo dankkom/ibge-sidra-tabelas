@@ -1,6 +1,3 @@
-# Copyright (c) 2026 Komesu, D.K.
-# Licensed under the MIT License.
-
 """Hierarchical pipeline runner.
 
 Walks a pipeline directory depth-first, post-order:

@@ -1,6 +1,3 @@
-# Copyright (c) 2026 Komesu, D.K.
-# Licensed under the MIT License.
-
 import tomllib
 from dataclasses import dataclass, field
 from enum import Enum

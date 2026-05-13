@@ -1,6 +1,3 @@
-# Copyright (c) 2026 Komesu, D.K.
-# Licensed under the MIT License.
-
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch

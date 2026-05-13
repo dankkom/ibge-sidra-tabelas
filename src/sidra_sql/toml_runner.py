@@ -1,6 +1,3 @@
-# Copyright (c) 2026 Komesu, D.K.
-# Licensed under the MIT License.
-
 """Pipeline runner driven by a TOML configuration file.
 
 ``TomlScript`` reads a TOML file that declares which SIDRA tables to fetch

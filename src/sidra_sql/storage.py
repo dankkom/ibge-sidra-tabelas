@@ -1,6 +1,3 @@
-# Copyright (c) 2026 Komesu, D.K.
-# Licensed under the MIT License.
-
 """Storage repository for SIDRA data files.
 
 This module provides the `Storage` class, which centralizes all

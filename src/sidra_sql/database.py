@@ -1,6 +1,3 @@
-# Copyright (c) 2026 Komesu, D.K.
-# Licensed under the MIT License.
-
 """Database helpers: engine creation and data-loading functions.
 
 Public functions:

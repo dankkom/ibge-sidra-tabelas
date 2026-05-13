@@ -1,6 +1,3 @@
-# Copyright (c) 2026 Komesu, D.K.
-# Licensed under the MIT License.
-
 """Pipeline runner for SQL transformations defined by ``transform.toml``.
 
 A pipeline directory contains one ``transform.toml`` declaring one or more
